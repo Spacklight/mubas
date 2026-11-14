@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --color-paper: #f3f0e7;
+  --color-ink: #16182b;
+  --color-muted: #5c6178;
+  --color-card: #fffcf6;
+  --color-line: #e3dccb;
+  --color-denim: #148bc2;
+  --color-denim-deep: #0c6a96;
+  --color-denim-soft: #e5f3fb;
+  --color-navy: #1c1669;
+  --color-sand: #ead9a6;
+  --color-sand-soft: #f8f1dc;
+  --color-on-denim: #f5fbfe;
+  --color-on-navy: #f6f3ea;
+  --color-on-sand: #1c1669;
+  --color-danger: #8d2d2d;
+  --color-danger-soft: #f8e8e4;
+  --color-good: #1d6b45;
+  --color-good-soft: #e5f4ec;
+  --radius-card: 1.25rem;
+}
+
+.dark {
+  --color-paper: #101221;
+  --color-ink: #f4efe6;
+  --color-muted: #b0b4c9;
+  --color-card: #191b2e;
+  --color-line: #2d3148;
+  --color-denim-soft: #143246;
+  --color-sand: #e0cd96;
+  --color-sand-soft: #2c2818;
+  --color-danger: #f0b4ae;
+  --color-danger-soft: #3a2222;
+  --color-good: #9ddec0;
+  --color-good-soft: #163228;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-denim);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-sand);
+    color: var(--color-navy);
+  }
+
+  summary {
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+.panel {
+  border: 1px solid var(--color-line);
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+}
+
+.mesh {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--color-line) 85%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-line) 85%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.dock {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

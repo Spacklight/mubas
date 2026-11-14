@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Zapa">
+  <rect width="32" height="32" rx="7" fill="#1C1669"/>
+  <polyline points="8,9.2 24,9.2 8,22.8 24,22.8" fill="none" stroke="#EAD9A6" stroke-width="4.6" stroke-linejoin="miter" stroke-miterlimit="3" stroke-linecap="butt"/>
+  <circle cx="24" cy="9.2" r="2.15" fill="#148BC2"/>
+</svg>

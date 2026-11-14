@@ -35,6 +35,8 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Client } from "pg";
+import { isWorkers } from "../d1";
+import { d1Dialect } from "./d1-dialect";
 import { ensureDbReady, getPglite } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
 import { GATE_PROVIDER_ID, gateIdentitySessions } from "./gate-session.server";
@@ -141,7 +143,9 @@ const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
 // SAME DB as app data, including email/password users. Both use the Better Auth
 // schema from `migrations/auth/0001_auth.sql`, copied into `migrations/` when
 // the app turns sign-in on.
-const database = databaseUrl
+const database = isWorkers()
+  ? { dialect: d1Dialect(), type: "sqlite" as const }
+  : databaseUrl
   ? ({
       // Per-request connections (Cloudflare Workers can't reuse a shared pool).
       async connect() {

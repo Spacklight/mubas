@@ -1,7 +1,9 @@
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
+import { d1Query, ensureD1Schema, getD1, isWorkers } from "./d1";
+import { migrationFiles } from "./d1-schema";
 
 /** Which database backend is active. */
-export type DbSource = "neon" | "pglite";
+export type DbSource = "neon" | "pglite" | "d1";
 
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
 // "unset" — otherwise production would silently run on the PGLite fallback.
@@ -16,7 +18,9 @@ const databaseUrl =
  * the app has a working database even with nothing configured — the live preview
  * included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
  */
-export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
+// "d1" when a Cloudflare D1 database is bound as DB. Decided in createSql() at
+// request time, because Worker bindings do not exist at module load.
+export let dbSource: DbSource = databaseUrl ? "neon" : "pglite";
 
 /**
  * Minimal shared SQL surface, satisfied by both Neon and PGLite. Both the
@@ -183,6 +187,16 @@ async function createSql(): Promise<Sql> {
         "or a server route loader, never from client code.",
     );
   }
+  const d1 = await getD1();
+  if (d1) {
+    dbSource = "d1";
+    await ensureD1Schema(d1, migrationFiles());
+    return toSql(async <T>(text: string, params: unknown[]) => d1Query<T>(text, params));
+  }
+  if (isWorkers() && !databaseUrl) {
+    // Fail closed: PGLite cannot run in a Worker and must never be used there.
+    throw new Error("No database: bind a Cloudflare D1 database to this Worker with the variable name DB.");
+  }
   return dbSource === "neon" ? createNeonSql() : createPgliteSql();
 }
 
@@ -236,7 +250,7 @@ export function ensureDbReady(): Promise<void> {
 const globalBoot = globalThis as typeof globalThis & {
   __pgBootstrapPromise__?: Promise<void>;
 };
-if (typeof window === "undefined" && dbSource === "pglite") {
+if (typeof window === "undefined" && dbSource === "pglite" && !isWorkers()) {
   globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
     globalBoot.__pgBootstrapPromise__ = undefined;
     console.error("[db] PGLite bootstrap failed:", err);

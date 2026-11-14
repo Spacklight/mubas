@@ -171,7 +171,20 @@ export default defineConfig(({ command, isPreview }) => ({
       ? [
           nitro({
             preset: "cloudflare_module",
-            cloudflare: { deployConfig: true, nodeCompat: true },
+            cloudflare: {
+              deployConfig: true,
+              nodeCompat: true,
+              // D1 database for all app data (binding name must stay "DB").
+              wrangler: {
+                d1_databases: [
+                  {
+                    binding: "DB",
+                    database_name: "mubas-db",
+                    database_id: "58f1d061-94d1-459b-b6da-fbc140f79398",
+                  },
+                ],
+              },
+            },
             // Auto-registers server/middleware/* (the PWA install page +
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.

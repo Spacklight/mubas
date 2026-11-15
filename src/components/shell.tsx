@@ -1,5 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  Bell,
   BookOpen,
   Compass,
   House,
@@ -16,7 +18,6 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
   Users,
   X,
 } from "lucide-react";
-import { useState } from "react";
 import { UserButton } from "@/lib/auth/gates";
 import { Logo } from "@/components/logo";
 import { ThemeButton } from "@/components/theme-button";

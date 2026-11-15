@@ -112,3 +112,34 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.rise { animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.rise-2 { animation-delay: 0.12s; }
+.rise-3 { animation-delay: 0.24s; }
+.drift { animation: drift 7s ease-in-out infinite; }
+.twinkle { animation: twinkle 3.4s ease-in-out infinite; }
+
+.hero-glow {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, color-mix(in srgb, var(--color-denim) 55%, transparent), transparent 60%),
+    radial-gradient(40rem 24rem at -10% 110%, color-mix(in srgb, var(--color-sand) 22%, transparent), transparent 60%),
+    var(--color-navy);
+}
+
+.lift { transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
+.lift:hover { transform: translateY(-3px); border-color: var(--color-denim); box-shadow: 0 14px 30px -18px rgba(28, 22, 105, 0.45); }

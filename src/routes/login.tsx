@@ -4,7 +4,7 @@ import { Logo } from "@/components/logo";
 import { ThemeButton } from "@/components/theme-button";
 import { CampusScene } from "@/components/campus-scene";
 import { btn, ErrorNote, Field, input } from "@/components/ui";
-import { emailAuth, failureMessage } from "@/lib/campus/email-auth";
+import { authFailure, emailAuth, failureMessage } from "@/lib/campus/email-auth";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -36,17 +36,17 @@ function Login() {
       const auth = emailAuth();
       if (mode === "reset") {
         const result = await auth.requestPasswordReset({ email, redirectTo: "/login" });
-        if (result.error) throw new Error(result.error.message ?? "Could not send the reset link.");
+        if (result.error) throw new Error(authFailure(result.error, "Could not send the reset link."));
         setNote("If that email has an account, a reset link is on its way.");
         return;
       }
       if (mode === "join") {
         if (password.length < 8) throw new Error("Use a password with at least 8 characters.");
         const made = await auth.signUp.email({ email, password, name: name.trim() || email.split("@")[0] });
-        if (made.error) throw new Error(made.error.message ?? "Could not create the account.");
+        if (made.error) throw new Error(authFailure(made.error, "Could not create the account."));
       }
       const result = await auth.signIn.email({ email, password, callbackURL: "/campus" });
-      if (result.error) throw new Error(result.error.message ?? "Wrong email or password.");
+      if (result.error) throw new Error(authFailure(result.error, "Wrong email or password."));
       void navigate({ to: "/campus" });
     } catch (reason) {
       setError(failureMessage(reason));

@@ -11,6 +11,8 @@
  * The D1 binding must be named DB.
  */
 
+import { migrationFiles } from "./d1-schema";
+
 export type Row = Record<string, unknown>;
 
 type D1Result = { results?: Row[]; meta?: { changes?: number } };
@@ -121,6 +123,10 @@ export async function d1Run(
 ): Promise<{ rows: Row[]; affected: number }> {
   const db = await getD1();
   if (!db) throw new D1Error("No D1 database bound. Bind a D1 database to this Worker with the variable name DB.");
+  // Sign-up reaches the login system before any campus page runs, so make sure
+  // the tables exist before the first query of every isolate.
+  const override = (globalThis as { __D1_SCHEMA__?: Record<string, string> }).__D1_SCHEMA__; // tests
+  await ensureD1Schema(db, override ?? migrationFiles());
   const stmt = db.prepare(translate(text));
   const res = await (params.length ? stmt.bind(...params.map(bindValue)) : stmt).all();
   const rows = normalize(res.results ?? []);

@@ -1,6 +1,6 @@
 import { authClient } from "@/lib/auth/client";
 
-type Result = { error: { message?: string } | null };
+type Result = { error: { message?: string; code?: string; status?: number; statusText?: string } | null };
 
 type EmailAuth = {
   signUp: {
@@ -19,6 +19,11 @@ type EmailAuth = {
 
 export function emailAuth(): EmailAuth {
   return authClient as unknown as EmailAuth;
+}
+
+export function authFailure(error: NonNullable<Result["error"]>, fallback: string): string {
+  const detail = error.message || error.code || error.statusText;
+  return detail ? `${detail}${error.status ? ` (${error.status})` : ""}` : fallback;
 }
 
 export function failureMessage(error: unknown): string {

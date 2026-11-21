@@ -214,13 +214,15 @@ export function toSqlite(stmt: string): string {
   return s;
 }
 
-const migrationsDone = new WeakMap<object, Promise<void>>();
+// Only a *finished* migration is remembered. In-flight promises must never be shared
+// between requests: Workers drops a promise that settles after the request that
+// created it has ended, which makes every other request waiting on it fail.
+const migrationsDone = new WeakSet<object>();
 
 /** Apply pending migration files once per isolate (idempotent, atomic per file). */
 export function ensureD1Schema(db: D1Like, files: Record<string, string>): Promise<void> {
-  const existing = migrationsDone.get(db);
-  if (existing) return existing;
-  const run = (async () => {
+  if (migrationsDone.has(db)) return Promise.resolve();
+  return (async () => {
     await db
       .prepare("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT DEFAULT CURRENT_TIMESTAMP)")
       .all();
@@ -237,8 +239,6 @@ export function ensureD1Schema(db: D1Like, files: Record<string, string>): Promi
       statements.push(db.prepare("INSERT OR IGNORE INTO _migrations (name) VALUES (?1)").bind(f.name) as never);
       await db.batch(statements);
     }
+    migrationsDone.add(db);
   })();
-  migrationsDone.set(db, run);
-  run.catch(() => migrationsDone.delete(db)); // retry on the next request
-  return run;
 }

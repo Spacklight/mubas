@@ -16,9 +16,14 @@ import { CampusScene } from "@/components/campus-scene";
 import { ThemeButton } from "@/components/theme-button";
 import { btn, btnGhost } from "@/components/ui";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { PublicFooter } from "@/components/public-layout";
+import { organizationJsonLd, seo } from "@/lib/site";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Zapa MUBAS — Your Campus. Your Community. Your Connection." }] }),
+  head: () => {
+    const base = seo({ title: "Zapa MUBAS — Your Campus. Your Community. Your Connection.", path: "/" });
+    return { ...base, scripts: [{ type: "application/ld+json", children: organizationJsonLd() }] };
+  },
   component: Landing,
 });
 
@@ -151,14 +156,7 @@ function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-6 text-sm text-muted">
-          <Logo />
-          <Link to="/guide" className="hover:text-ink">Help Centre</Link>
-          <a href="https://www.mubas.ac.mw/" target="_blank" rel="noreferrer" className="hover:text-ink">Official MUBAS site</a>
-          <span className="md:ml-auto">Zapa is independent and not endorsed by MUBAS.</span>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

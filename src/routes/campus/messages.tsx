@@ -124,14 +124,23 @@ function Thread({ id, onBack, onRead }: { id: number; onBack: () => void; onRead
   const [sending, setSending] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   const seen = useRef(0);
+  const lastSig = useRef("");
+  const draft = useRef("");
+  draft.current = body;
 
   const load = useCallback(async () => {
     try {
       const result = await unwrap(getThread({ data: { conversationId: id } }));
       setTitle(result.conversation.title);
-      setMessages(result.messages);
       setError(null);
-      onRead();
+      // Only touch the screen when something actually changed.
+      const tail = result.messages[result.messages.length - 1];
+      const sig = `${result.messages.length}:${tail?.id ?? 0}:${tail?.removed ? 1 : 0}`;
+      if (sig !== lastSig.current) {
+        lastSig.current = sig;
+        setMessages(result.messages);
+        onRead();
+      }
     } catch (reason) {
       setError(failureMessage(reason));
     } finally {
@@ -143,8 +152,9 @@ function Thread({ id, onBack, onRead }: { id: number; onBack: () => void; onRead
   useEffect(() => {
     void load();
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void load();
-    }, 8000);
+      // Never refresh while the person is typing a reply.
+      if (document.visibilityState === "visible" && !draft.current.trim()) void load();
+    }, 15000);
     return () => window.clearInterval(timer);
   }, [load]);
 

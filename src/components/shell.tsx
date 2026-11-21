@@ -10,6 +10,7 @@ import {
   Menu,
   MessageCircle,
   Megaphone,
+  Sparkles,
   Play,
   Search,
   Settings,
@@ -28,6 +29,7 @@ import { input } from "@/components/ui";
 const MAIN = [
   { to: "/campus", label: "Home", icon: House, exact: true },
   { to: "/campus/discover", label: "Discover", icon: Compass, exact: false },
+  { to: "/campus/showcase", label: "Showcase", icon: Sparkles, exact: false },
   { to: "/campus/messages", label: "Messages", icon: MessageCircle, exact: false },
   { to: "/campus/library", label: "Library", icon: Library, exact: false },
 ] as const;
@@ -154,7 +156,7 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
         </main>
       </div>
-      <nav className="dock fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-card md:hidden">
+      <nav className="dock fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-card md:hidden">
         {MAIN.map((item) => {
           const on = active(path, item.to, item.exact);
           const Icon = item.icon;

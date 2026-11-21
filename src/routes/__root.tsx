@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { Toaster } from "sonner";
+import { InstallPrompt } from "@/components/install-prompt";
 import appCss from "../styles.css?url";
 
 const THEME_BOOT = `(function(){try{var t=localStorage.getItem("zapa-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark");}catch(e){}})();`;
@@ -43,6 +44,7 @@ export const Route = createRootRoute({
         <AuthProvider>
           <Outlet />
         </AuthProvider>
+        <InstallPrompt />
         <Toaster position="top-center" />
         <Scripts />
       </body>

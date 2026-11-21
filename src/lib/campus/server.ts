@@ -2238,6 +2238,7 @@ export const adminAct = createServerFn({ method: "POST" })
       if (type === "post") await sql.query(`update posts set hidden = true where id = $1`, [Number(target)]);
       if (type === "video") await sql.query(`update videos set hidden = true where id = $1`, [Number(target)]);
       if (type === "resource") await sql.query(`update library_resources set hidden = true where id = $1`, [Number(target)]);
+      if (type === "showcase") await sql.query(`update showcase_items set hidden = true where id = $1`, [Number(target)]);
       await sql`update reports set status = 'reviewed' where id = ${parsed.id}`;
       await audit(sql, context.userId, "hide", `${type}:${target}`);
       return { ok: true as const };
@@ -2295,6 +2296,19 @@ export const leaveCampus = createServerFn({ method: "POST" })
     if ("ok" in parsed) return parsed;
     const { sql } = await db();
     const userId = context.userId;
+    const photos = await sql<Row>`select media_path from showcase_items where user_id = ${userId} and media_path is not null`;
+    await sql`delete from showcase_comments where user_id = ${userId}`;
+    await sql`delete from showcase_likes where user_id = ${userId}`;
+    await sql`delete from showcase_items where user_id = ${userId}`;
+    const photoPaths = photos.map((row) => str(row, "media_path")).filter(Boolean);
+    if (photoPaths.length) {
+      try {
+        const hf = await import("@/lib/hf.server");
+        if (hf.hfConfigured()) await hf.hfDelete(photoPaths, "Remove a closed account's photos");
+      } catch (error) {
+        console.error("[leave] could not remove stored photos", error instanceof Error ? error.message : error);
+      }
+    }
     await sql`delete from library_resources where uploader_id = ${userId}`;
     await sql`delete from libraries where owner_id = ${userId}`;
     await sql`delete from video_comments where user_id = ${userId}`;

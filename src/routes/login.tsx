@@ -4,13 +4,14 @@ import { Logo } from "@/components/logo";
 import { ThemeButton } from "@/components/theme-button";
 import { CampusScene } from "@/components/campus-scene";
 import { btn, ErrorNote, Field, input } from "@/components/ui";
+import { seo } from "@/lib/site";
 import { authFailure, emailAuth, failureMessage } from "@/lib/campus/email-auth";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
     mode: search.mode === "join" ? ("join" as const) : undefined,
   }),
-  head: () => ({ meta: [{ title: "Sign in — Zapa MUBAS" }] }),
+  head: () => seo({ title: "Sign in — Zapa MUBAS", path: "/login", noindex: true }),
   component: Login,
 });
 

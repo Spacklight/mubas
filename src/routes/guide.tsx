@@ -3,9 +3,11 @@ import { ExternalLink, Mail, MapPin, Phone } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeButton } from "@/components/theme-button";
 import { ABOUT, FAQS, SCHOOLS, SERVICES } from "@/lib/campus/guide";
+import { PublicFooter } from "@/components/public-layout";
+import { seo } from "@/lib/site";
 
 export const Route = createFileRoute("/guide")({
-  head: () => ({ meta: [{ title: "Help Centre — Zapa MUBAS" }] }),
+  head: () => seo({ title: "Help Centre — Zapa MUBAS", description: "Find your way around MUBAS: schools, programmes, official systems such as SMIS and Moodle, student services, and the Zapa community guidelines.", path: "/guide" }),
   component: Guide,
 });
 
@@ -87,6 +89,7 @@ function Guide() {
         </div>
         <p className="mt-10 text-sm text-muted">Zapa is independent. It is not endorsed by or connected to MUBAS administration.</p>
       </main>
+      <PublicFooter />
     </div>
   );
 }

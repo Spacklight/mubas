@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /campus/
+Disallow: /api/
+Disallow: /login
+
+Sitemap: https://zapamubas.de5.net/sitemap.xml

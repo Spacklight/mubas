@@ -179,6 +179,7 @@ async function createPgliteSql(): Promise<Sql> {
 }
 
 let sqlPromise: Promise<Sql> | null = null;
+let sqlReady: Sql | null = null;
 
 async function createSql(): Promise<Sql> {
   if (typeof window !== "undefined") {
@@ -207,7 +208,14 @@ async function createSql(): Promise<Sql> {
  * Schema comes from `migrations/*.sql`, auto-applied before the first query on
  * both backends — define tables there, never inline in server functions.
  */
-export function getSql(): Promise<Sql> {
+export async function getSql(): Promise<Sql> {
+  if (isWorkers()) {
+    // Never share an in-flight promise between requests on Workers (see d1.ts).
+    if (sqlReady) return sqlReady;
+    const created = await createSql();
+    sqlReady = created;
+    return created;
+  }
   sqlPromise ??= createSql().catch((err) => {
     sqlPromise = null; // don't memoize failures — let the next call retry
     throw err;

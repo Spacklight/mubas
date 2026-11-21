@@ -125,6 +125,87 @@ export async function hfUpload(path: string, base64: string, summary = "Add show
   await commit([{ key: "lfsFile", value: { path, algo: "sha256", size, oid } }], summary);
 }
 
+// ---------------------------------------------------------------------------
+// Direct video upload (Git LFS). The browser never sees Hugging Face URLs or
+// tokens: the server asks Hugging Face for an upload plan, keeps it, and relays
+// each part the browser sends (see /api/content-upload).
+// ---------------------------------------------------------------------------
+
+export type LfsPlan = {
+  mode: "none" | "basic" | "multipart";
+  putUrl?: string;
+  putHeaders?: Record<string, string>;
+  chunkSize?: number;
+  partUrls?: string[];
+  completionUrl?: string;
+  verifyUrl?: string;
+  verifyHeaders?: Record<string, string>;
+};
+
+const LFS_JSON = { Accept: "application/vnd.git-lfs+json", "Content-Type": "application/vnd.git-lfs+json" };
+
+export async function hfLfsPlan(oid: string, size: number): Promise<LfsPlan> {
+  const { token, repo } = need();
+  const res = await fetch(`${HF}/datasets/${repo}.git/info/lfs/objects/batch`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, ...LFS_JSON },
+    body: JSON.stringify({ operation: "upload", transfers: ["basic", "multipart"], objects: [{ oid, size }], hash_algo: "sha256", ref: { name: "main" } }),
+  });
+  if (!res.ok) throw await explain(res, "Preparing the video upload");
+  const body = (await res.json()) as {
+    objects?: Array<{
+      error?: { message?: string };
+      actions?: {
+        upload?: { href: string; header?: Record<string, string> };
+        verify?: { href: string; header?: Record<string, string> };
+      };
+    }>;
+  };
+  const object = body.objects?.[0];
+  if (object?.error) throw new HfError(`Hugging Face refused the video: ${object.error.message ?? "unknown error"}`);
+  const upload = object?.actions?.upload;
+  const verify = object?.actions?.verify;
+  const plan: LfsPlan = { mode: "none", verifyUrl: verify?.href, verifyHeaders: verify?.header };
+  if (!upload) return plan; // the same file is already stored
+  const header = { ...(upload.header ?? {}) };
+  const chunk = Number(header.chunk_size);
+  delete header.chunk_size;
+  if (Number.isFinite(chunk) && chunk > 0) {
+    const partUrls = Object.entries(header)
+      .filter(([key]) => /^\d+$/.test(key))
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([, url]) => url);
+    return { ...plan, mode: "multipart", chunkSize: chunk, partUrls, completionUrl: upload.href };
+  }
+  return { ...plan, mode: "basic", putUrl: upload.href, putHeaders: header };
+}
+
+/** Finish a multipart upload and verify the object with Hugging Face. */
+export async function hfLfsFinish(plan: LfsPlan, oid: string, size: number, etags: string[]): Promise<void> {
+  const { token } = need();
+  if (plan.mode === "multipart") {
+    if (!plan.completionUrl) throw new HfError("Upload plan is incomplete.");
+    const res = await fetch(plan.completionUrl, {
+      method: "POST",
+      headers: LFS_JSON,
+      body: JSON.stringify({ oid, parts: etags.map((etag, i) => ({ partNumber: i + 1, etag })) }),
+    });
+    if (!res.ok) throw await explain(res, "Finishing the video upload");
+  }
+  if (plan.verifyUrl) {
+    const res = await fetch(plan.verifyUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, ...(plan.verifyHeaders ?? {}), ...LFS_JSON },
+      body: JSON.stringify({ oid, size }),
+    });
+    if (!res.ok) throw await explain(res, "Verifying the video");
+  }
+}
+
+export async function hfCommitLfs(path: string, oid: string, size: number, summary = "Add video"): Promise<void> {
+  await commit([{ key: "lfsFile", value: { path, algo: "sha256", size, oid } }], summary);
+}
+
 export async function hfDelete(paths: string[], summary = "Remove showcase file"): Promise<void> {
   if (!paths.length) return;
   await commit(paths.map((path) => ({ key: "deletedFile", value: { path } })), summary);

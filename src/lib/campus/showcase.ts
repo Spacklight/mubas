@@ -2,7 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { cleanHttpUrl, cleanText, REPORT_REASONS } from "@/lib/campus/logic";
+import { buildListQuery, CONTENT_TABS, PAGE, STORIES_SQL } from "@/lib/campus/showcase-sql";
 import type { Fail } from "@/lib/campus/types";
+
+export { CONTENT_TABS };
+export type ContentTabId = (typeof CONTENT_TABS)[number];
 
 export const SHOWCASE_CATEGORIES = [
   "Talent",
@@ -16,6 +20,10 @@ export const SHOWCASE_CATEGORIES = [
   "Other",
 ] as const;
 
+/** Largest uploaded video, in bytes. */
+export const MAX_VIDEO_BYTES = 60 * 1024 * 1024;
+export const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"] as const;
+
 export type ShowcaseItem = {
   id: number;
   userId: string;
@@ -26,13 +34,20 @@ export type ShowcaseItem = {
   title: string;
   body: string;
   category: string;
-  hasImage: boolean;
+  /** A file stored on Hugging Face (photo or uploaded video). */
+  hasMedia: boolean;
+  hasThumb: boolean;
   linkUrl: string | null;
+  views: number;
+  shares: number;
   likeCount: number;
   commentCount: number;
   liked: boolean;
+  following: boolean;
   createdAt: string;
 };
+
+export type StoryItem = { id: number; userId: string; author: string; caption: string; createdAt: string };
 
 type Row = Record<string, unknown>;
 
@@ -45,8 +60,9 @@ async function db() {
   const { getSql } = await import("@/lib/db");
   return getSql();
 }
+type Sql = Awaited<ReturnType<typeof db>>;
 
-async function member(sql: Awaited<ReturnType<typeof db>>, userId: string) {
+async function member(sql: Sql, userId: string) {
   const rows = await sql.query<Row>(`select full_name, role, account_status from profiles where user_id = $1`, [userId]);
   const row = rows[0];
   if (!row) return fail("Finish your campus profile first.");
@@ -54,7 +70,7 @@ async function member(sql: Awaited<ReturnType<typeof db>>, userId: string) {
   return { name: str(row, "full_name"), role: str(row, "role") };
 }
 
-async function limited(sql: Awaited<ReturnType<typeof db>>, userId: string, action: string, limit: number): Promise<Fail | null> {
+async function limited(sql: Sql, userId: string, action: string, limit: number): Promise<Fail | null> {
   const rows = await sql.query<Row>(
     `select count(*)::int as n from rate_hits where user_id = $1 and action = $2 and hit_at > now() - interval '1 hour'`,
     [userId, action],
@@ -80,16 +96,25 @@ function map(row: Row): ShowcaseItem {
     title: str(row, "title"),
     body: str(row, "body"),
     category: str(row, "category"),
-    hasImage: Boolean(row.media_path),
+    hasMedia: Boolean(row.media_path),
+    hasThumb: Boolean(row.thumb_path),
     linkUrl: row.link_url ? str(row, "link_url") : null,
+    views: num(row, "views"),
+    shares: num(row, "shares"),
     likeCount: num(row, "like_count"),
     commentCount: num(row, "comment_count"),
     liked: flag(row, "liked"),
+    following: flag(row, "following"),
     createdAt: str(row, "created_at"),
   };
 }
 
-const PAGE = 12;
+const ownerSlug = (userId: string) => userId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) || "member";
+const fileStamp = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const hfBackground = (job: (hf: typeof import("@/lib/hf.server")) => Promise<unknown>) =>
+  void import("@/lib/hf.server").then(job).catch(() => undefined);
+
+// ---------------------------------------------------------------- feed ----
 
 export const listShowcase = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -98,10 +123,12 @@ export const listShowcase = createServerFn({ method: "POST" })
     const parsed = parse(
       z.object({
         offset: z.number().int().min(0).max(600).optional(),
+        tab: z.enum(CONTENT_TABS).optional(),
         kind: z.enum(["post", "image", "video"]).optional(),
         category: z.string().max(40).optional(),
         authorId: z.string().max(80).optional(),
         q: z.string().trim().max(60).optional(),
+        id: z.number().int().positive().optional(),
       }),
       data ?? {},
     );
@@ -109,32 +136,12 @@ export const listShowcase = createServerFn({ method: "POST" })
     const sql = await db();
     const me = await member(sql, context.userId);
     if ("ok" in me) return me;
-    const params: unknown[] = [context.userId];
-    let where = `s.hidden = false and p.account_status = 'active'
-      and not exists (select 1 from blocks b where (b.blocker_id = $1 and b.blocked_id = s.user_id) or (b.blocker_id = s.user_id and b.blocked_id = $1))`;
-    const add = (clause: string, value: unknown) => {
-      params.push(value);
-      where += ` and ${clause.replaceAll("?", `$${params.length}`)}`;
-    };
-    if (parsed.kind) add("s.kind = ?", parsed.kind);
-    if (parsed.category) add("s.category = ?", parsed.category);
-    if (parsed.authorId) add("s.user_id = ?", parsed.authorId);
-    if (parsed.q) add("(s.title ilike ? or s.body ilike ?)", `%${parsed.q}%`);
-    params.push(PAGE, parsed.offset ?? 0);
-    const rows = await sql.query<Row>(
-      `select s.id, s.user_id, s.kind, s.title, s.body, s.category, s.media_path, s.link_url, s.created_at,
-              p.full_name, p.role, p.role_confirmed,
-              (select count(*) from showcase_likes l where l.item_id = s.id) as like_count,
-              (select count(*) from showcase_comments c where c.item_id = s.id) as comment_count,
-              exists(select 1 from showcase_likes l where l.item_id = s.id and l.user_id = $1) as liked
-       from showcase_items s join profiles p on p.user_id = s.user_id
-       where ${where}
-       order by s.created_at desc, s.id desc
-       limit $${params.length - 1} offset $${params.length}`,
-      params,
-    );
+    const { text, values } = buildListQuery(context.userId, parsed);
+    const rows = await sql.query<Row>(text, values);
     return { ok: true as const, items: rows.map(map), more: rows.length === PAGE };
   });
+
+// ------------------------------------------------------------- creating ----
 
 const IMAGE = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/;
 const MAX_IMAGE_CHARS = 820_000;
@@ -177,12 +184,11 @@ export const createShowcase = createServerFn({ method: "POST" })
     if (parsed.kind === "image") {
       const hf = await import("@/lib/hf.server");
       if (!hf.hfConfigured()) return fail("Photo sharing is not switched on yet. You can still share a post or a video link.");
-      const owner = context.userId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) || "member";
-      path = `showcase/${owner}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      path = `showcase/${ownerSlug(context.userId)}/${fileStamp()}.jpg`;
       try {
-        await hf.hfUpload(path, base64, "Add showcase photo");
+        await hf.hfUpload(path, base64, "Add photo");
       } catch (error) {
-        console.error("[showcase] upload failed", error instanceof Error ? error.message : error);
+        console.error("[content] upload failed", error instanceof Error ? error.message : error);
         return fail("Could not save the photo right now. Try again in a moment.");
       }
     }
@@ -194,10 +200,114 @@ export const createShowcase = createServerFn({ method: "POST" })
       );
       return { ok: true as const, id: num(rows[0] ?? {}, "id") };
     } catch (error) {
-      if (path) void import("@/lib/hf.server").then((hf) => hf.hfDelete([path as string])).catch(() => undefined);
+      if (path) hfBackground((hf) => hf.hfDelete([path as string]));
       throw error;
     }
   });
+
+// ---------------------------------------------------- video upload (HF) ----
+
+/**
+ * Step 1: reserve the upload. The browser has already hashed the file (SHA-256),
+ * so Hugging Face can verify the bytes later. The file itself is relayed in parts
+ * through /api/content-upload and never held in memory by the server.
+ */
+export const startVideoUpload = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data, context }) => {
+    const parsed = parse(
+      z.object({
+        title: z.string().trim().min(3, "Give your video a title.").max(120),
+        body: z.string().trim().max(3000).optional(),
+        category: z.enum(SHOWCASE_CATEGORIES),
+        size: z.number().int().min(1024, "That video looks empty.").max(MAX_VIDEO_BYTES, "Videos can be up to 60 MB. Trim your clip and try again."),
+        oid: z.string().regex(/^[a-f0-9]{64}$/, "Could not read the video."),
+        contentType: z.enum(VIDEO_TYPES),
+      }),
+      data,
+    );
+    if ("ok" in parsed) return parsed;
+    const sql = await db();
+    const me = await member(sql, context.userId);
+    if ("ok" in me) return me;
+    const hf = await import("@/lib/hf.server");
+    if (!hf.hfConfigured()) return fail("Video uploads are not switched on yet.");
+    const paced = await limited(sql, context.userId, "content-video", 6);
+    if (paced) return paced;
+
+    let plan;
+    try {
+      plan = await hf.hfLfsPlan(parsed.oid, parsed.size);
+    } catch (error) {
+      console.error("[content] upload plan failed", error instanceof Error ? error.message : error);
+      return fail("Could not start the upload. Try again in a moment.");
+    }
+    const ext = parsed.contentType === "video/webm" ? "webm" : parsed.contentType === "video/quicktime" ? "mov" : "mp4";
+    const path = `content/${ownerSlug(context.userId)}/${fileStamp()}.${ext}`;
+    const rows = await sql.query<Row>(
+      `insert into showcase_items (user_id, kind, title, body, category, media_path, media_type, media_oid, media_size, upload_plan, pending)
+       values ($1, 'video', $2, $3, $4, $5, $6, $7, $8, $9, true) returning id`,
+      [context.userId, cleanText(parsed.title, 120), cleanText(parsed.body ?? "", 3000), parsed.category, path, parsed.contentType, parsed.oid, parsed.size, JSON.stringify(plan)],
+    );
+    const parts = plan.mode === "multipart" ? Math.ceil(parsed.size / (plan.chunkSize ?? parsed.size)) : plan.mode === "basic" ? 1 : 0;
+    if (plan.mode === "multipart" && (plan.partUrls?.length ?? 0) < parts) return fail("Hugging Face returned an unexpected upload plan.");
+    return { ok: true as const, itemId: num(rows[0] ?? {}, "id"), mode: plan.mode, chunkSize: plan.chunkSize ?? parsed.size, parts };
+  });
+
+/** Step 3: Hugging Face has the bytes. Verify, commit, and publish the video. */
+export const finishVideoUpload = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data, context }) => {
+    const parsed = parse(
+      z.object({
+        itemId: z.number().int().positive(),
+        etags: z.array(z.string().max(200)).max(400).optional(),
+        poster: z.string().max(260_000).optional(),
+      }),
+      data,
+    );
+    if ("ok" in parsed) return parsed;
+    const sql = await db();
+    const me = await member(sql, context.userId);
+    if ("ok" in me) return me;
+    const rows = await sql.query<Row>(
+      `select id, media_path, media_oid, media_size, upload_plan from showcase_items where id = $1 and user_id = $2 and pending = true`,
+      [parsed.itemId, context.userId],
+    );
+    const item = rows[0];
+    if (!item) return fail("That upload was not found. Start again.");
+    const hf = await import("@/lib/hf.server");
+    const plan = JSON.parse(str(item, "upload_plan")) as import("@/lib/hf.server").LfsPlan;
+    const oid = str(item, "media_oid");
+    const size = num(item, "media_size");
+    const path = str(item, "media_path");
+    try {
+      if (plan.mode === "multipart" && (parsed.etags?.length ?? 0) < Math.ceil(size / (plan.chunkSize ?? size))) {
+        return fail("Some parts of the video did not upload. Try again.");
+      }
+      await hf.hfLfsFinish(plan, oid, size, parsed.etags ?? []);
+      await hf.hfCommitLfs(path, oid, size, "Add video");
+    } catch (error) {
+      console.error("[content] finishing upload failed", error instanceof Error ? error.message : error);
+      return fail("Hugging Face could not finish saving the video. Try again.");
+    }
+    let thumb: string | null = null;
+    const poster = parsed.poster ? IMAGE.exec(parsed.poster) : null;
+    if (poster && poster[1].length <= 250_000) {
+      thumb = path.replace(/\.[a-z0-9]+$/i, "") + "-poster.jpg";
+      try {
+        await hf.hfUpload(thumb, poster[1], "Add video poster");
+      } catch {
+        thumb = null; // the video still works without a poster
+      }
+    }
+    await sql.query(`update showcase_items set pending = false, thumb_path = $2, upload_plan = null where id = $1`, [parsed.itemId, thumb]);
+    return { ok: true as const, id: parsed.itemId };
+  });
+
+// ------------------------------------------------------------- actions ----
 
 export const showcaseAction = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -205,7 +315,7 @@ export const showcaseAction = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const parsed = parse(
       z.object({
-        action: z.enum(["like", "comment", "list-comments", "delete", "report"]),
+        action: z.enum(["like", "comment", "list-comments", "delete", "report", "view", "share"]),
         id: z.number().int().positive(),
         body: z.string().trim().max(1000).optional(),
         reason: z.enum(REPORT_REASONS).optional(),
@@ -216,7 +326,7 @@ export const showcaseAction = createServerFn({ method: "POST" })
     const sql = await db();
     const me = await member(sql, context.userId);
     if ("ok" in me) return me;
-    const found = await sql.query<Row>(`select id, user_id, media_path from showcase_items where id = $1 and hidden = false`, [parsed.id]);
+    const found = await sql.query<Row>(`select id, user_id, media_path, thumb_path from showcase_items where id = $1 and hidden = false and pending = false`, [parsed.id]);
     const item = found[0];
     if (!item) return fail("That post is no longer available.");
 
@@ -228,6 +338,18 @@ export const showcaseAction = createServerFn({ method: "POST" })
       }
       await sql.query(`insert into showcase_likes (item_id, user_id) values ($1, $2)`, [parsed.id, context.userId]);
       return { ok: true as const, on: true };
+    }
+    if (parsed.action === "view") {
+      // One view per member per post.
+      const fresh = await sql.query<Row>(`insert into showcase_views (item_id, user_id) values ($1, $2) on conflict do nothing returning item_id`, [parsed.id, context.userId]);
+      if (fresh.length) await sql.query(`update showcase_items set views = views + 1 where id = $1`, [parsed.id]);
+      return { ok: true as const };
+    }
+    if (parsed.action === "share") {
+      const paced = await limited(sql, context.userId, "content-share", 40);
+      if (paced) return paced;
+      await sql.query(`update showcase_items set shares = shares + 1 where id = $1`, [parsed.id]);
+      return { ok: true as const };
     }
     if (parsed.action === "list-comments") {
       const rows = await sql.query<Row>(
@@ -261,8 +383,75 @@ export const showcaseAction = createServerFn({ method: "POST" })
     const admin = me.role === "admin";
     if (str(item, "user_id") !== context.userId && !admin) return fail("You can only remove your own posts.");
     await sql.query(`update showcase_items set hidden = true where id = $1`, [parsed.id]);
-    const path = item.media_path ? str(item, "media_path") : "";
-    if (path) void import("@/lib/hf.server").then((hf) => hf.hfDelete([path])).catch(() => undefined);
+    const paths = [str(item, "media_path"), str(item, "thumb_path")].filter(Boolean);
+    if (paths.length) hfBackground((hf) => hf.hfDelete(paths));
+    return { ok: true as const };
+  });
+
+// ------------------------------------------------------------- stories ----
+
+export const listStories = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await db();
+    const me = await member(sql, context.userId);
+    if ("ok" in me) return me;
+    const rows = await sql.query<Row>(STORIES_SQL, [context.userId]);
+    const stories: StoryItem[] = rows.map((r) => ({
+      id: num(r, "id"),
+      userId: str(r, "user_id"),
+      author: str(r, "full_name"),
+      caption: str(r, "caption"),
+      createdAt: str(r, "created_at"),
+    }));
+    return { ok: true as const, stories };
+  });
+
+export const createStory = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data, context }) => {
+    const parsed = parse(
+      z.object({ imageData: z.string().max(MAX_IMAGE_CHARS + 40), caption: z.string().trim().max(140).optional() }),
+      data,
+    );
+    if ("ok" in parsed) return parsed;
+    const match = IMAGE.exec(parsed.imageData);
+    if (!match || match[1].length > MAX_IMAGE_CHARS) return fail("Choose a photo (JPEG) under about 600 KB.");
+    const sql = await db();
+    const me = await member(sql, context.userId);
+    if ("ok" in me) return me;
+    const hf = await import("@/lib/hf.server");
+    if (!hf.hfConfigured()) return fail("Stories are not switched on yet.");
+    const paced = await limited(sql, context.userId, "story", 10);
+    if (paced) return paced;
+    const path = `stories/${ownerSlug(context.userId)}/${fileStamp()}.jpg`;
+    try {
+      await hf.hfUpload(path, match[1], "Add story");
+    } catch (error) {
+      console.error("[story] upload failed", error instanceof Error ? error.message : error);
+      return fail("Could not save your story right now. Try again in a moment.");
+    }
+    const rows = await sql.query<Row>(`insert into stories (user_id, media_path, caption) values ($1, $2, $3) returning id`, [
+      context.userId,
+      path,
+      cleanText(parsed.caption ?? "", 140),
+    ]);
+    return { ok: true as const, id: num(rows[0] ?? {}, "id") };
+  });
+
+export const deleteStory = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data, context }) => {
+    const parsed = parse(z.object({ id: z.number().int().positive() }), data);
+    if ("ok" in parsed) return parsed;
+    const sql = await db();
+    const rows = await sql.query<Row>(`select media_path from stories where id = $1 and user_id = $2 and hidden = false`, [parsed.id, context.userId]);
+    if (!rows[0]) return fail("That story is already gone.");
+    await sql.query(`update stories set hidden = true where id = $1`, [parsed.id]);
+    const path = str(rows[0], "media_path");
+    if (path) hfBackground((hf) => hf.hfDelete([path]));
     return { ok: true as const };
   });
 

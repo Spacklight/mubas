@@ -31,7 +31,7 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
   { icon: Compass, title: "People you may know", body: "Classmates first: same programme and year, then your department, school and study mode." },
   { icon: Users, title: "Programme rooms", body: "A room for every programme and school. Questions, study groups and notices in one place." },
   { icon: MessageCircle, title: "Messages", body: "Chat one to one or in groups, with unread counts and read receipts." },
-  { icon: Play, title: "Zapa Watch", body: "Share and find tutorials, lectures and student stories. Subscribe to creators you like." },
+  { icon: Play, title: "Zapa Content", body: "Upload videos and photos, post Stories, and like, comment and follow creators from across MUBAS." },
   { icon: Library, title: "Zapa Library", body: "Approved providers share notes, past papers and books with clear access rules." },
   { icon: Megaphone, title: "MUBAS Updates", body: "Announcements with the source named and a link to the official page." },
   { icon: LifeBuoy, title: "Help Centre", body: "Schools, e-services, calendar and ICT support, with links to the official systems." },

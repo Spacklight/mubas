@@ -19,7 +19,7 @@ function Privacy() {
         <ul>
           <li><strong>Account details:</strong> your name, email address and a password. Passwords are stored only as a one-way hash, never in readable form.</li>
           <li><strong>Profile details you choose to add:</strong> school, programme, study level and mode, year, role, interests, skills, a short bio, a profile photo and a cover photo, and an optional MUBAS email address.</li>
-          <li><strong>Things you share:</strong> posts, comments, replies, Showcase posts and photos, video and library links, reports, and messages you send to other members.</li>
+          <li><strong>Things you share:</strong> posts, comments, replies, Zapa Content videos, photos, stories and posts, video and library links, reports, and messages you send to other members.</li>
           <li><strong>Connections and activity:</strong> friend requests, follows, blocks, likes, saved items, notifications, and when you were last active.</li>
           <li><strong>Technical records:</strong> a sign-in cookie, short-lived counters that limit spam (action type and time), and standard server logs kept by our hosting provider (such as IP address and browser type).</li>
         </ul>
@@ -37,7 +37,7 @@ function Privacy() {
         <h2>3. Who can see what</h2>
         <ul>
           <li>Your email address is never shown on your public profile.</li>
-          <li>Your profile, posts and Showcase items are visible to other signed-in members. You can limit your profile to friends only in Settings.</li>
+          <li>Your profile, posts and Zapa Content items are visible to other signed-in members. You can limit your profile to friends only in Settings.</li>
           <li>Messages are visible to the people in the conversation. They are stored on our servers and are <strong>not end-to-end encrypted</strong>. We do not read private messages as a matter of routine. A message may be reviewed if it is reported, or if the law requires it.</li>
           <li>Stewards (moderators) can see reports, accounts and basic profile details needed to run the community. Their actions are logged.</li>
         </ul>
@@ -45,7 +45,7 @@ function Privacy() {
         <h2>4. Services that process your information</h2>
         <ul>
           <li><strong>Cloudflare</strong> hosts the website and its database, and processes connection data such as IP addresses.</li>
-          <li><strong>Hugging Face</strong> stores photos you add to Showcase in a private dataset. Files are served back only to signed-in members through our servers.</li>
+          <li><strong>Hugging Face</strong> stores the videos, photos and story images you add to Zapa Content in a private dataset. Files are served back only to signed-in members through our servers, and are deleted when you delete the post or your account.</li>
           <li><strong>SmartBase</strong> sends the confirmation code to your MUBAS email address, so it receives that address and your name.</li>
           <li><strong>Google Fonts</strong> serves the typefaces used on the site, which means your browser contacts Google when pages load.</li>
           <li><strong>YouTube (privacy-enhanced mode)</strong> loads only if you press play on an embedded video. Other video and library links open on the website that hosts them, under that site&apos;s own policy.</li>
@@ -56,7 +56,7 @@ function Privacy() {
         <p>We use a sign-in cookie that is essential for the site to work, and small items in your browser to remember your theme, data-saver choice and whether you dismissed the app prompt. We do not use advertising cookies.</p>
 
         <h2>6. How long we keep it</h2>
-        <p>We keep your information while your account is open. If you leave {SITE.name} (Settings, then Leave Zapa), your profile details, posts, comments, messages, Showcase items and stored photos are deleted or anonymised. Spam counters are short-lived. Backups held by our providers may take a short time to expire.</p>
+        <p>We keep your information while your account is open. If you leave {SITE.name} (Settings, then Leave Zapa), your profile details, posts, comments, messages, Zapa Content items and stored photos are deleted or anonymised. Spam counters are short-lived. Backups held by our providers may take a short time to expire.</p>
 
         <h2>7. Your choices and rights</h2>
         <ul>

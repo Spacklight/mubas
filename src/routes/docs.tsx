@@ -3,13 +3,13 @@ import { Prose, PublicShell } from "@/components/public-layout";
 import { SITE, seo } from "@/lib/site";
 
 export const Route = createFileRoute("/docs")({
-  head: () => seo({ title: "Documentation — How to use Zapa MUBAS", description: "A step-by-step guide to Zapa MUBAS: profiles, finding classmates, programme rooms, messages, Showcase, Zapa Watch, Zapa Library, notifications and safety.", path: "/docs" }),
+  head: () => seo({ title: "Documentation — How to use Zapa MUBAS", description: "A step-by-step guide to Zapa MUBAS: profiles, finding classmates, programme rooms, messages, Zapa Content, Zapa Watch, Zapa Library, notifications and safety.", path: "/docs" }),
   component: Docs,
 });
 
 const TOC = [
   ["start", "Getting started"], ["profile", "Your profile"], ["people", "Finding people"], ["rooms", "Programme rooms"], ["messages", "Messages"],
-  ["showcase", "Showcase"], ["watch", "Zapa Watch"], ["library", "Zapa Library"], ["updates", "MUBAS Updates"], ["safety", "Safety and privacy"], ["stewards", "For stewards"], ["help", "Troubleshooting"],
+  ["content", "Zapa Content"], ["watch", "Zapa Watch"], ["library", "Zapa Library"], ["updates", "MUBAS Updates"], ["safety", "Safety and privacy"], ["stewards", "For stewards"], ["help", "Troubleshooting"],
 ] as const;
 
 function Docs() {
@@ -44,8 +44,14 @@ function Docs() {
         <h2 id="messages">Messages</h2>
         <p>Open a chat from a profile, or create a group from <strong>Messages → Group</strong> by picking friends. You see unread counts, can reply to a message and delete your own messages. New messages appear within a few seconds.</p>
 
-        <h2 id="showcase">Showcase</h2>
-        <p>Showcase is where you share talent and knowledge: a photo of your work, a link to your video, or a written post. Pick a category, add a title and press <strong>Share</strong>. Others can like and comment. You can delete your posts at any time. Share only your own work or things you have permission to share.</p>
+        <h2 id="content">Zapa Content</h2>
+        <p>Zapa Content is the Home tab: a feed of videos, photos and posts from MUBAS students, with Stories along the top. Switch between <strong>For You</strong>, <strong>Following</strong>, <strong>Trending</strong>, <strong>MUBAS</strong> (lecturers, staff and anything tagged #MUBAS) and <strong>Friends</strong>.</p>
+        <ul>
+          <li>Tap the big <strong>Create</strong> button to upload a video (MP4, MOV or WebM, up to 60 MB), share a photo, write a post, or add a Story that disappears after 24 hours.</li>
+          <li>Videos and photos are saved in Zapa&apos;s private storage on Hugging Face, so no one can download them without signing in.</li>
+          <li>Like, comment, share and follow creators. Each card shows views, likes, comments and shares. Use hashtags like #ZapaContent.</li>
+          <li>Tap the three dots to report a post, or to remove your own. Share only your own work or things you have permission to share.</li>
+        </ul>
 
         <h2 id="watch">Zapa Watch</h2>
         <p>Share links to tutorials, lectures and student stories. YouTube links play inside Zapa when you press play, and thumbnails are skipped when data saver is on. Subscribe to creators and save videos to playlists.</p>
@@ -64,7 +70,7 @@ function Docs() {
         </ul>
 
         <h2 id="stewards">For stewards</h2>
-        <p>Stewards open <strong>Steward</strong> to review library applications and reports, confirm lecturer or staff roles, and suspend or restore accounts. Every action is logged. The Showcase page has a storage check that tests the Hugging Face dataset connection.</p>
+        <p>Stewards open <strong>Steward</strong> to review library applications and reports, confirm lecturer or staff roles, and suspend or restore accounts. Every action is logged. The steward page has a storage check that tests the Hugging Face dataset connection.</p>
 
         <h2 id="help">Troubleshooting</h2>
         <ul>

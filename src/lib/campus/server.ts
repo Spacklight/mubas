@@ -2296,11 +2296,17 @@ export const leaveCampus = createServerFn({ method: "POST" })
     if ("ok" in parsed) return parsed;
     const { sql } = await db();
     const userId = context.userId;
-    const photos = await sql<Row>`select media_path from showcase_items where user_id = ${userId} and media_path is not null`;
+    const photos = await sql<Row>`select media_path, thumb_path from showcase_items where user_id = ${userId} and (media_path is not null or thumb_path is not null)`;
+    const storyFiles = await sql<Row>`select media_path from stories where user_id = ${userId}`;
+    await sql`delete from stories where user_id = ${userId}`;
+    await sql`delete from showcase_views where user_id = ${userId}`;
     await sql`delete from showcase_comments where user_id = ${userId}`;
     await sql`delete from showcase_likes where user_id = ${userId}`;
     await sql`delete from showcase_items where user_id = ${userId}`;
-    const photoPaths = photos.map((row) => str(row, "media_path")).filter(Boolean);
+    const photoPaths = [
+      ...photos.flatMap((row) => [str(row, "media_path"), str(row, "thumb_path")]),
+      ...storyFiles.map((row) => str(row, "media_path")),
+    ].filter(Boolean);
     if (photoPaths.length) {
       try {
         const hf = await import("@/lib/hf.server");

@@ -38,10 +38,10 @@ function Terms() {
         </ul>
 
         <h2>4. Your content</h2>
-        <p>You keep ownership of what you post, including Showcase photos, videos and posts. You give {SITE.name} permission to store it and show it to other members as part of the service. You promise that you own it or have permission to share it, and that it follows these terms. You can delete your content at any time.</p>
+        <p>You keep ownership of what you post, including Zapa Content photos, videos and posts. You give {SITE.name} permission to store it and show it to other members as part of the service. You promise that you own it or have permission to share it, and that it follows these terms. You can delete your content at any time.</p>
 
-        <h2>5. Showcase and Library</h2>
-        <p>Showcase is for sharing your own talents, projects and knowledge. Zapa Library providers must be approved and must only share material they are allowed to share. We remove material after a valid copyright complaint and may end a library or account that repeatedly infringes.</p>
+        <h2>5. Zapa Content and Library</h2>
+        <p>Zapa Content is for sharing your own talents, projects and knowledge. Zapa Library providers must be approved and must only share material they are allowed to share. We remove material after a valid copyright complaint and may end a library or account that repeatedly infringes.</p>
 
         <h2>6. Moderation</h2>
         <p>Members can report content and accounts. Stewards may hide content, warn, suspend or remove accounts that break these terms, and keep a log of their actions. We may act without notice when safety or the law requires it. If you think we made a mistake, contact us.</p>

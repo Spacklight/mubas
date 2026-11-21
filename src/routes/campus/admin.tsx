@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { adminAct, adminOverview } from "@/lib/campus/server";
+import { checkStorage } from "@/lib/campus/showcase";
 import { ago } from "@/lib/campus/logic";
 import { failureMessage } from "@/lib/campus/email-auth";
 import { useCampus } from "@/components/campus-state";
@@ -80,9 +82,34 @@ function Dashboard() {
           </li>))}</ul>
       </Card>
 
+      <StorageCard />
+
       <Card title="Audit log">
         {data.logs.length === 0 ? <p className="text-sm text-muted">Nothing logged yet.</p> : <ul className="grid gap-1 text-sm">{data.logs.map((l) => <li key={l.id}><span className="font-semibold">{l.action}</span> <span className="text-muted">{l.detail} · {ago(l.createdAt)}</span></li>)}</ul>}
       </Card>
     </div>
+  );
+}
+
+function StorageCard() {
+  const [steps, setSteps] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    setBusy(true);
+    try {
+      const result = await unwrap(checkStorage());
+      setSteps(result.steps);
+    } catch (reason) {
+      setSteps([failureMessage(reason)]);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Card title="Zapa Content storage">
+      <p className="text-sm text-muted">Checks that Zapa can save to, read from and delete from the Hugging Face dataset that holds videos, photos and stories.</p>
+      <button type="button" className={`${btnGhost} mt-3`} disabled={busy} onClick={() => void run()}>{busy ? "Testing…" : "Run storage check"}</button>
+      {steps ? <ul className="mt-3 grid gap-1 text-sm">{steps.map((s) => <li key={s}>{s}</li>)}</ul> : null}
+    </Card>
   );
 }

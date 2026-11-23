@@ -1,7 +1,7 @@
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Film, ImagePlus, PenLine, CirclePlus, X } from "lucide-react";
-import { createShowcase, createStory, SHOWCASE_CATEGORIES } from "@/lib/campus/showcase";
+import { createShowcase, createStory, getQuota, SHOWCASE_CATEGORIES } from "@/lib/campus/showcase";
 import { failureMessage } from "@/lib/campus/email-auth";
 import { checkVideo, uploadVideo, type UploadStage } from "@/lib/video-upload";
 import { shrinkImage, unwrap } from "@/components/page-kit";
@@ -18,6 +18,11 @@ const TITLES: Record<Mode, string> = { menu: "Create", video: "Upload a video", 
 export function CreateSheet({ onClose }: { onClose: () => void }) {
   const [mode, setMode] = useState<Mode>("menu");
   const [locked, setLocked] = useState(false);
+  const [quota, setQuota] = useState<{ video: { left: number; limit: number }; story: { left: number; limit: number } } | null>(null);
+
+  useEffect(() => {
+    void unwrap(getQuota()).then((q) => setQuota({ video: q.video, story: q.story })).catch(() => undefined);
+  }, []);
 
   function done(message: string) {
     toast.success(message);
@@ -35,13 +40,19 @@ export function CreateSheet({ onClose }: { onClose: () => void }) {
         </div>
         {mode === "menu" ? (
           <div className="grid grid-cols-2 gap-3">
-            {([["video", "Video", Film, "Upload from your phone"], ["photo", "Photo", ImagePlus, "Show your work"], ["post", "Post", PenLine, "Share what you know"], ["story", "Story", CirclePlus, "Disappears in 24 hours"]] as const).map(([key, label, Icon, hint]) => (
-              <button key={key} type="button" onClick={() => setMode(key)} className="panel lift grid gap-1 p-4 text-left">
+            {([
+              ["video", "Video", Film, quota ? `${quota.video.left} of ${quota.video.limit} uploads left today` : "Upload from your phone"],
+              ["photo", "Photo", ImagePlus, "Show your work"],
+              ["post", "Post", PenLine, "Share what you know"],
+              ["story", "Story", CirclePlus, quota ? `${quota.story.left} of ${quota.story.limit} left today` : "Disappears in 24 hours"],
+            ] as const).map(([key, label, Icon, hint]) => (
+              <button key={key} type="button" disabled={(key === "video" && quota?.video.left === 0) || (key === "story" && quota?.story.left === 0)} onClick={() => setMode(key)} className="panel lift grid gap-1 p-4 text-left disabled:opacity-50">
                 <span className="grid size-11 place-items-center rounded-xl bg-denim-soft text-denim-deep"><Icon className="size-6" /></span>
                 <span className="font-display text-lg">{label}</span>
                 <span className="text-xs text-muted">{hint}</span>
               </button>
             ))}
+            <p className="col-span-2 text-xs text-pretty text-muted">Daily limits: {quota?.video.limit ?? 5} videos and {quota?.story.limit ?? 10} stories per person. They renew at midnight.</p>
           </div>
         ) : mode === "video" ? (
           <VideoForm setLocked={setLocked} onDone={() => done("Your video is live!")} />

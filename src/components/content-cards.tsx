@@ -30,6 +30,7 @@ export function useContentActions(item: ShowcaseItem, onChange?: () => void) {
   const [likes, setLikes] = useState(item.likeCount);
   const [shares, setShares] = useState(item.shares);
   const [following, setFollowing] = useState(item.following);
+  const [saved, setSaved] = useState(item.saved);
 
   async function run<T>(job: () => Promise<T>): Promise<T | null> {
     try {
@@ -45,6 +46,14 @@ export function useContentActions(item: ShowcaseItem, onChange?: () => void) {
     likes,
     shares,
     following,
+    saved,
+    async save() {
+      const r = await run(() => unwrap(showcaseAction({ data: { action: "save", id: item.id } })));
+      if (r && "on" in r) {
+        setSaved(Boolean(r.on));
+        toast.success(r.on ? "Saved" : "Removed from saved");
+      }
+    },
     async like() {
       const r = await run(() => unwrap(showcaseAction({ data: { action: "like", id: item.id } })));
       if (r && "on" in r) {
@@ -57,7 +66,7 @@ export function useContentActions(item: ShowcaseItem, onChange?: () => void) {
       if (r && "on" in r) setFollowing(Boolean(r.on));
     },
     async share() {
-      const url = `${window.location.origin}/campus/content/${item.id}`;
+      const url = `${window.location.origin}/campus/reels?id=${item.id}`;
       try {
         if (navigator.share) await navigator.share({ title: item.title, text: item.title, url });
         else {
@@ -108,7 +117,7 @@ function RailButton({ label, onClick, children }: { label: string; onClick?: () 
 }
 
 /** One tile of the Zapa Content grid: cover, views, action rail, title, author and Follow. */
-export function ContentCard({ item, meId, admin, onChange }: { item: ShowcaseItem; meId: string; admin: boolean; onChange: () => void }) {
+export function ContentCard({ item, meId, admin, tab, onChange }: { item: ShowcaseItem; meId: string; admin: boolean; tab?: string; onChange: () => void }) {
   const { dataSaver } = useCampus();
   const a = useContentActions(item, onChange);
   const [menu, setMenu] = useState(false);
@@ -118,7 +127,7 @@ export function ContentCard({ item, meId, admin, onChange }: { item: ShowcaseIte
   return (
     <article className="relative isolate aspect-[3/4.25] overflow-hidden rounded-2xl bg-navy text-white shadow-lg">
       <Cover item={item} saver={dataSaver} />
-      <Link to="/campus/content/$id" params={{ id: String(item.id) }} aria-label={`Open ${item.title}`} className="absolute inset-0 z-0" />
+      <Link to="/campus/reels" search={{ id: item.id, tab }} aria-label={`Open ${item.title}`} className="absolute inset-0 z-0" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/25" />
 
       <span className="pointer-events-none absolute left-2.5 top-2.5 z-10 inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-xs font-bold backdrop-blur">
@@ -131,7 +140,7 @@ export function ContentCard({ item, meId, admin, onChange }: { item: ShowcaseIte
           <ThumbsUp className={`size-7 ${a.liked ? "fill-denim text-denim" : ""}`} />
           {compact(a.likes)}
         </RailButton>
-        <Link to="/campus/content/$id" params={{ id: String(item.id) }} hash="comments" aria-label="Comments" className="grid min-h-11 min-w-11 place-items-center gap-0.5 text-xs font-bold drop-shadow">
+        <Link to="/campus/reels" search={{ id: item.id, tab, comments: true }} aria-label="Comments" className="grid min-h-11 min-w-11 place-items-center gap-0.5 text-xs font-bold drop-shadow">
           <MessageCircle className="size-7" />
           {compact(item.commentCount)}
         </Link>

@@ -1,6 +1,6 @@
 /** SQL for Zapa Content. Pure functions (no server imports) so they can be tested on their own. */
 
-export const CONTENT_TABS = ["for-you", "following", "trending", "mubas", "friends"] as const;
+export const CONTENT_TABS = ["for-you", "following", "trending", "mubas", "friends", "saved"] as const;
 export type ContentTab = (typeof CONTENT_TABS)[number];
 
 export type ListParams = {
@@ -20,7 +20,8 @@ const SELECT = `s.id, s.user_id, s.kind, s.title, s.body, s.category, s.media_pa
   (select count(*) from showcase_likes l where l.item_id = s.id) as like_count,
   (select count(*) from showcase_comments c where c.item_id = s.id) as comment_count,
   exists(select 1 from showcase_likes l where l.item_id = s.id and l.user_id = $1) as liked,
-  exists(select 1 from follows f where f.follower_id = $1 and f.following_id = s.user_id) as following`;
+  exists(select 1 from follows f where f.follower_id = $1 and f.following_id = s.user_id) as following,
+  exists(select 1 from showcase_saves sv where sv.item_id = s.id and sv.user_id = $1) as saved`;
 
 const SCORE = `(select count(*) from showcase_likes l2 where l2.item_id = s.id) * 3
   + (select count(*) from showcase_comments c2 where c2.item_id = s.id) * 4 + s.shares * 5 + s.views as score`;
@@ -43,6 +44,8 @@ export function buildListQuery(userId: string, params: ListParams): { text: stri
     where += ` and exists (select 1 from follows f2 where f2.follower_id = $1 and f2.following_id = s.user_id)`;
   } else if (tab === "friends") {
     where += ` and exists (select 1 from friendships fr where (fr.user_a = $1 and fr.user_b = s.user_id) or (fr.user_b = $1 and fr.user_a = s.user_id))`;
+  } else if (tab === "saved") {
+    where += ` and exists (select 1 from showcase_saves sv2 where sv2.item_id = s.id and sv2.user_id = $1)`;
   } else if (tab === "mubas") {
     where += ` and (p.role = 'admin' or (p.role in ('lecturer', 'staff') and p.role_confirmed = true)
       or s.title ilike '%#mubas%' or s.body ilike '%#mubas%')`;

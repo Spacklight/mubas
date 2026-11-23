@@ -9,7 +9,7 @@ export const Route = createFileRoute("/docs")({
 
 const TOC = [
   ["start", "Getting started"], ["profile", "Your profile"], ["people", "Finding people"], ["rooms", "Programme rooms"], ["messages", "Messages"],
-  ["content", "Zapa Content"], ["watch", "Zapa Watch"], ["library", "Zapa Library"], ["updates", "MUBAS Updates"], ["safety", "Safety and privacy"], ["stewards", "For stewards"], ["help", "Troubleshooting"],
+  ["content", "Zapa Content"], ["ai", "Zapa AI"], ["watch", "Zapa Watch"], ["library", "Zapa Library"], ["updates", "MUBAS Updates"], ["safety", "Safety and privacy"], ["stewards", "For stewards"], ["help", "Troubleshooting"],
 ] as const;
 
 function Docs() {
@@ -48,9 +48,20 @@ function Docs() {
         <p>Zapa Content is the Home tab: a feed of videos, photos and posts from MUBAS students, with Stories along the top. Switch between <strong>For You</strong>, <strong>Following</strong>, <strong>Trending</strong>, <strong>MUBAS</strong> (lecturers, staff and anything tagged #MUBAS) and <strong>Friends</strong>.</p>
         <ul>
           <li>Tap the big <strong>Create</strong> button to upload a video (MP4, MOV or WebM, up to 60 MB), share a photo, write a post, or add a Story that disappears after 24 hours.</li>
+          <li>Tap any card to open the full-screen player and swipe up for the next one. Use the speed button to slow a video down (0.5x to 2x), tap the speaker to turn sound on, and tap <strong>Save</strong> to keep a post in your Saved tab.</li>
+          <li>Daily limits: each person can upload <strong>5 videos</strong> and add <strong>10 stories</strong> a day. The limits renew at midnight, Malawi time.</li>
           <li>Videos and photos are saved in Zapa&apos;s private storage on Hugging Face, so no one can download them without signing in.</li>
           <li>Like, comment, share and follow creators. Each card shows views, likes, comments and shares. Use hashtags like #ZapaContent.</li>
           <li>Tap the three dots to report a post, or to remove your own. Share only your own work or things you have permission to share.</li>
+        </ul>
+
+        <h2 id="ai">Zapa AI</h2>
+        <p>Zapa AI is a study assistant. Open it from the sparkle icon at the top or from the menu. Ask questions, attach a PDF (up to 8 MB) and ask for a summary, or tap <strong>Explain More</strong>, <strong>Give Examples</strong> or <strong>Practice Questions</strong> under an answer.</p>
+        <ul>
+          <li>Tap <strong>Listen</strong> under an answer to hear it read aloud with your device voice (free), or <strong>HD voice</strong> for a natural voice you can also download.</li>
+          <li>Use <strong>Voice</strong> to ask a question out loud. <strong>My Files</strong> lists the PDFs you have used so you can ask about them again.</li>
+          <li>Everyone gets <strong>20 free credits a day</strong>, renewed at midnight (Malawi time). A question costs 1 credit, a question with a PDF 2, and HD voice 2.</li>
+          <li>AI can make mistakes. Check important facts in your notes and textbooks, and never share passwords or private information.</li>
         </ul>
 
         <h2 id="watch">Zapa Watch</h2>
@@ -70,7 +81,7 @@ function Docs() {
         </ul>
 
         <h2 id="stewards">For stewards</h2>
-        <p>Stewards open <strong>Steward</strong> to review library applications and reports, confirm lecturer or staff roles, and suspend or restore accounts. Every action is logged. The steward page has a storage check that tests the Hugging Face dataset connection.</p>
+        <p>Stewards open <strong>Steward</strong> to add and manage Gemini API keys for Zapa AI, review library applications and reports, confirm lecturer or staff roles, and suspend or restore accounts. Every action is logged. The steward page has a storage check that tests the Hugging Face dataset connection.</p>
 
         <h2 id="help">Troubleshooting</h2>
         <ul>

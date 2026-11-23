@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   Search,
+  Sparkles,
   Settings,
   Shield,
   UserRound,
@@ -25,6 +26,7 @@ import { ThemeButton } from "@/components/theme-button";
 import { useCampus } from "@/components/campus-state";
 import { SetupForm } from "@/components/setup-form";
 import { CreateSheet } from "@/components/create-content";
+import { Dock } from "@/components/dock";
 import { AvatarImg } from "@/components/page-kit";
 import { input } from "@/components/ui";
 
@@ -33,8 +35,10 @@ type NavDef = { to: string; label: string; icon: typeof House; exact: boolean };
 // Desktop sidebar
 const SIDE: NavDef[] = [
   { to: "/campus", label: "Home", icon: House, exact: true },
+  { to: "/campus/reels", label: "Zapa Content", icon: Play, exact: false },
   { to: "/campus/discover", label: "Discover", icon: Compass, exact: false },
   { to: "/campus/communities", label: "Communities", icon: Users, exact: false },
+  { to: "/campus/ai", label: "Zapa AI", icon: Sparkles, exact: false },
   { to: "/campus/watch", label: "Zapa Watch", icon: Play, exact: false },
   { to: "/campus/library", label: "Zapa Library", icon: Library, exact: false },
   { to: "/campus/messages", label: "Messages", icon: MessageCircle, exact: false },
@@ -42,24 +46,15 @@ const SIDE: NavDef[] = [
 ];
 
 const MORE: NavDef[] = [
+  { to: "/campus/ai", label: "Zapa AI", icon: Sparkles, exact: false },
   { to: "/campus/messages", label: "Messages", icon: MessageCircle, exact: false },
+  { to: "/campus/communities", label: "Communities", icon: Users, exact: false },
+  { to: "/campus/watch", label: "Zapa Watch", icon: Play, exact: false },
   { to: "/campus/feed", label: "Campus feed", icon: Newspaper, exact: false },
   { to: "/campus/updates", label: "MUBAS Updates", icon: Megaphone, exact: false },
   { to: "/guide", label: "Help Centre", icon: LifeBuoy, exact: false },
   { to: "/campus/me", label: "My profile", icon: UserRound, exact: false },
   { to: "/campus/settings", label: "Settings", icon: Settings, exact: false },
-];
-
-// Phone dock, in the same order as the Zapa design (the Create button sits in the middle)
-const DOCK_LEFT: NavDef[] = [
-  { to: "/campus", label: "Home", icon: House, exact: true },
-  { to: "/campus/discover", label: "Discover", icon: Compass, exact: false },
-  { to: "/campus/communities", label: "Communities", icon: Users, exact: false },
-];
-const DOCK_RIGHT: NavDef[] = [
-  { to: "/campus/watch", label: "Zapa Watch", icon: Play, exact: false },
-  { to: "/campus/library", label: "Zapa Library", icon: Library, exact: false },
-  { to: "/campus/alerts", label: "Alerts", icon: Bell, exact: false },
 ];
 
 function usePath() {
@@ -139,9 +134,8 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Link to="/campus/search" aria-label="Search" className="grid size-11 place-items-center rounded-full md:hidden">
                   <Search className="size-5" />
                 </Link>
-                <Link to="/campus/messages" aria-label="Messages" className="relative grid size-11 place-items-center rounded-full md:hidden">
-                  <MessageCircle className="size-5" />
-                  {campus.unreadMessages > 0 ? <span className="absolute right-0.5 top-0.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-on-navy">{campus.unreadMessages > 9 ? "9+" : campus.unreadMessages}</span> : null}
+                <Link to="/campus/ai" aria-label="Zapa AI" className="grid size-11 place-items-center rounded-full md:hidden">
+                  <Sparkles className="size-5" />
                 </Link>
                 <Link to="/campus/alerts" aria-label="Notifications" className="relative grid size-11 place-items-center rounded-full">
                   <Bell className="size-5" />
@@ -179,18 +173,9 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
 
       {ready ? (
-        <nav className="dock fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 items-end border-t border-line bg-card md:hidden" aria-label="Main">
-          {DOCK_LEFT.map((item) => (
-            <DockItem key={item.to} item={item} path={path} badge={0} />
-          ))}
-          <button type="button" onClick={() => setCreate(true)} aria-label="Create" className="relative grid place-items-center pb-1 text-xs font-semibold text-denim-deep">
-            <span className="-mt-7 grid size-14 place-items-center rounded-full bg-denim text-on-denim shadow-xl ring-4 ring-card"><Plus className="size-7" /></span>
-            <span>Create</span>
-          </button>
-          {DOCK_RIGHT.map((item) => (
-            <DockItem key={item.to} item={item} path={path} badge={badgeFor(item.to)} />
-          ))}
-        </nav>
+        <div className="fixed inset-x-0 bottom-0 z-30 md:hidden">
+          <Dock path={path} unreadNotes={campus.unreadNotes} />
+        </div>
       ) : null}
 
       {create ? <CreateSheet onClose={() => setCreate(false)} /> : null}
@@ -222,19 +207,6 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
     </div>
-  );
-}
-
-function DockItem({ item, path, badge }: { item: NavDef; path: string; badge: number }) {
-  const on = active(path, item.to, item.exact);
-  const Icon = item.icon;
-  return (
-    <Link to={item.to} className={`relative grid min-h-14 place-items-center content-center gap-0.5 text-[10px] font-semibold leading-tight ${on ? "text-denim-deep" : "text-muted"}`}>
-      <Icon className="size-5" />
-      <span className="max-w-full truncate px-0.5">{item.label}</span>
-      {badge > 0 ? <span className="absolute right-1.5 top-1.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-on-navy">{badge > 9 ? "9+" : badge}</span> : null}
-      {on ? <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-denim" /> : null}
-    </Link>
   );
 }
 

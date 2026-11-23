@@ -3,7 +3,8 @@ import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { cleanHttpUrl, cleanText, REPORT_REASONS } from "@/lib/campus/logic";
 import { buildListQuery, CONTENT_TABS, PAGE, STORIES_SQL } from "@/lib/campus/showcase-sql";
-import type { Fail } from "@/lib/campus/types";
+import { db, fail, flag, limited, member, num, parse, str, type Row } from "@/lib/campus/common";
+import { LIMITS, spend, usedToday } from "@/lib/campus/quota";
 
 export { CONTENT_TABS };
 export type ContentTabId = (typeof CONTENT_TABS)[number];
@@ -44,46 +45,11 @@ export type ShowcaseItem = {
   commentCount: number;
   liked: boolean;
   following: boolean;
+  saved: boolean;
   createdAt: string;
 };
 
 export type StoryItem = { id: number; userId: string; author: string; caption: string; createdAt: string };
-
-type Row = Record<string, unknown>;
-
-const fail = (error: string): Fail => ({ ok: false, error });
-const str = (row: Row, key: string) => (row[key] == null ? "" : String(row[key]));
-const num = (row: Row, key: string) => Number(row[key] ?? 0) || 0;
-const flag = (row: Row, key: string) => row[key] === true || row[key] === 1 || row[key] === "1" || row[key] === "t";
-
-async function db() {
-  const { getSql } = await import("@/lib/db");
-  return getSql();
-}
-type Sql = Awaited<ReturnType<typeof db>>;
-
-async function member(sql: Sql, userId: string) {
-  const rows = await sql.query<Row>(`select full_name, role, account_status from profiles where user_id = $1`, [userId]);
-  const row = rows[0];
-  if (!row) return fail("Finish your campus profile first.");
-  if (str(row, "account_status") !== "active") return fail("This account cannot post right now.");
-  return { name: str(row, "full_name"), role: str(row, "role") };
-}
-
-async function limited(sql: Sql, userId: string, action: string, limit: number): Promise<Fail | null> {
-  const rows = await sql.query<Row>(
-    `select count(*)::int as n from rate_hits where user_id = $1 and action = $2 and hit_at > now() - interval '1 hour'`,
-    [userId, action],
-  );
-  if (num(rows[0] ?? {}, "n") >= limit) return fail("You are sharing very quickly. Try again in a little while.");
-  await sql.query(`insert into rate_hits (user_id, action) values ($1, $2)`, [userId, action]);
-  return null;
-}
-
-function parse<T>(schema: z.ZodType<T>, input: unknown): T | Fail {
-  const result = schema.safeParse(input);
-  return result.success ? result.data : fail(result.error.issues[0]?.message ?? "Check the form and try again.");
-}
 
 function map(row: Row): ShowcaseItem {
   return {
@@ -105,6 +71,7 @@ function map(row: Row): ShowcaseItem {
     commentCount: num(row, "comment_count"),
     liked: flag(row, "liked"),
     following: flag(row, "following"),
+    saved: flag(row, "saved"),
     createdAt: str(row, "created_at"),
   };
 }
@@ -233,7 +200,10 @@ export const startVideoUpload = createServerFn({ method: "POST" })
     if ("ok" in me) return me;
     const hf = await import("@/lib/hf.server");
     if (!hf.hfConfigured()) return fail("Video uploads are not switched on yet.");
-    const paced = await limited(sql, context.userId, "content-video", 6);
+    if ((await usedToday(sql, context.userId, "video")) >= LIMITS.video) {
+      return fail(`You have used your ${LIMITS.video} video uploads for today. They renew at midnight.`);
+    }
+    const paced = await limited(sql, context.userId, "content-video", 12);
     if (paced) return paced;
 
     let plan;
@@ -304,6 +274,7 @@ export const finishVideoUpload = createServerFn({ method: "POST" })
       }
     }
     await sql.query(`update showcase_items set pending = false, thumb_path = $2, upload_plan = null where id = $1`, [parsed.itemId, thumb]);
+    await spend(sql, context.userId, "video");
     return { ok: true as const, id: parsed.itemId };
   });
 
@@ -315,7 +286,7 @@ export const showcaseAction = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const parsed = parse(
       z.object({
-        action: z.enum(["like", "comment", "list-comments", "delete", "report", "view", "share"]),
+        action: z.enum(["like", "comment", "list-comments", "delete", "report", "view", "share", "save"]),
         id: z.number().int().positive(),
         body: z.string().trim().max(1000).optional(),
         reason: z.enum(REPORT_REASONS).optional(),
@@ -337,6 +308,15 @@ export const showcaseAction = createServerFn({ method: "POST" })
         return { ok: true as const, on: false };
       }
       await sql.query(`insert into showcase_likes (item_id, user_id) values ($1, $2)`, [parsed.id, context.userId]);
+      return { ok: true as const, on: true };
+    }
+    if (parsed.action === "save") {
+      const had = await sql.query<Row>(`select 1 as x from showcase_saves where item_id = $1 and user_id = $2`, [parsed.id, context.userId]);
+      if (had.length) {
+        await sql.query(`delete from showcase_saves where item_id = $1 and user_id = $2`, [parsed.id, context.userId]);
+        return { ok: true as const, on: false };
+      }
+      await sql.query(`insert into showcase_saves (item_id, user_id) values ($1, $2)`, [parsed.id, context.userId]);
       return { ok: true as const, on: true };
     }
     if (parsed.action === "view") {
@@ -423,8 +403,9 @@ export const createStory = createServerFn({ method: "POST" })
     if ("ok" in me) return me;
     const hf = await import("@/lib/hf.server");
     if (!hf.hfConfigured()) return fail("Stories are not switched on yet.");
-    const paced = await limited(sql, context.userId, "story", 10);
-    if (paced) return paced;
+    if ((await usedToday(sql, context.userId, "story")) >= LIMITS.story) {
+      return fail(`You have added your ${LIMITS.story} stories for today. They renew at midnight.`);
+    }
     const path = `stories/${ownerSlug(context.userId)}/${fileStamp()}.jpg`;
     try {
       await hf.hfUpload(path, match[1], "Add story");
@@ -437,6 +418,7 @@ export const createStory = createServerFn({ method: "POST" })
       path,
       cleanText(parsed.caption ?? "", 140),
     ]);
+    await spend(sql, context.userId, "story");
     return { ok: true as const, id: num(rows[0] ?? {}, "id") };
   });
 
@@ -466,4 +448,19 @@ export const checkStorage = createServerFn({ method: "POST" })
     const hf = await import("@/lib/hf.server");
     const result = await hf.hfSelfTest();
     return { ok: true as const, healthy: result.ok, steps: result.steps };
+  });
+
+/** What the signed-in member can still do today (limits renew at midnight, Malawi time). */
+export const getQuota = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await db();
+    const me = await member(sql, context.userId);
+    if ("ok" in me) return me;
+    const [video, story] = await Promise.all([usedToday(sql, context.userId, "video"), usedToday(sql, context.userId, "story")]);
+    return {
+      ok: true as const,
+      video: { used: video, limit: LIMITS.video, left: Math.max(0, LIMITS.video - video) },
+      story: { used: story, limit: LIMITS.story, left: Math.max(0, LIMITS.story - story) },
+    };
   });

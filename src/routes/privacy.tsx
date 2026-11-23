@@ -19,7 +19,8 @@ function Privacy() {
         <ul>
           <li><strong>Account details:</strong> your name, email address and a password. Passwords are stored only as a one-way hash, never in readable form.</li>
           <li><strong>Profile details you choose to add:</strong> school, programme, study level and mode, year, role, interests, skills, a short bio, a profile photo and a cover photo, and an optional MUBAS email address.</li>
-          <li><strong>Things you share:</strong> posts, comments, replies, Zapa Content videos, photos, stories and posts, video and library links, reports, and messages you send to other members.</li>
+          <li><strong>Zapa AI:</strong> the questions you ask, the answers you receive, and a short text summary of any PDF you attach (the PDF itself is not kept).</li>
+          <li><strong>Things you share:</strong> posts, comments, replies, Zapa Content videos, photos, stories and posts, Zapa AI conversations and file summaries, video and library links, reports, and messages you send to other members.</li>
           <li><strong>Connections and activity:</strong> friend requests, follows, blocks, likes, saved items, notifications, and when you were last active.</li>
           <li><strong>Technical records:</strong> a sign-in cookie, short-lived counters that limit spam (action type and time), and standard server logs kept by our hosting provider (such as IP address and browser type).</li>
         </ul>
@@ -47,6 +48,7 @@ function Privacy() {
           <li><strong>Cloudflare</strong> hosts the website and its database, and processes connection data such as IP addresses.</li>
           <li><strong>Hugging Face</strong> stores the videos, photos and story images you add to Zapa Content in a private dataset. Files are served back only to signed-in members through our servers, and are deleted when you delete the post or your account.</li>
           <li><strong>SmartBase</strong> sends the confirmation code to your MUBAS email address, so it receives that address and your name.</li>
+          <li><strong>Google (Gemini)</strong> receives the questions and PDFs you send to Zapa AI so it can write answers and, if you choose HD voice, produce audio. Do not put passwords or private information in Zapa AI.</li>
           <li><strong>Google Fonts</strong> serves the typefaces used on the site, which means your browser contacts Google when pages load.</li>
           <li><strong>YouTube (privacy-enhanced mode)</strong> loads only if you press play on an embedded video. Other video and library links open on the website that hosts them, under that site&apos;s own policy.</li>
         </ul>

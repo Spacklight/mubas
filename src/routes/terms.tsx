@@ -46,8 +46,9 @@ function Terms() {
         <h2>6. Moderation</h2>
         <p>Members can report content and accounts. Stewards may hide content, warn, suspend or remove accounts that break these terms, and keep a log of their actions. We may act without notice when safety or the law requires it. If you think we made a mistake, contact us.</p>
 
-        <h2>7. Messages and links</h2>
+        <h2>7. Messages, links and Zapa AI</h2>
         <p>Messages are between the people in a conversation. Links to other websites are provided for convenience; we do not control and are not responsible for them.</p>
+        <p>Zapa AI uses a third-party AI service. Its answers can be wrong or incomplete and are not professional, legal, medical or official university advice. Check important facts yourself. Use it to learn, follow your lecturers&apos; rules on assessments, and do not use it to produce harmful content or to share private information. Daily credit and upload limits apply and may change.</p>
 
         <h2>8. Availability and changes</h2>
         <p>We work to keep {SITE.name} available, but it is provided &quot;as is&quot; and may be interrupted, changed or discontinued. We may update features and these terms; the date above shows the latest version.</p>

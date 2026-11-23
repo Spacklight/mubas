@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Clapperboard, Flame, GraduationCap, UserRound, Users } from "lucide-react";
+import { Bookmark, Clapperboard, Flame, GraduationCap, UserRound, Users } from "lucide-react";
 import { listShowcase, type ContentTabId, type ShowcaseItem } from "@/lib/campus/showcase";
 import { failureMessage } from "@/lib/campus/email-auth";
 import { useCampus } from "@/components/campus-state";
@@ -21,6 +21,7 @@ const TABS: { id: ContentTabId; label: string; icon: typeof Flame }[] = [
   { id: "trending", label: "Trending", icon: Flame },
   { id: "mubas", label: "MUBAS", icon: GraduationCap },
   { id: "friends", label: "Friends", icon: UserRound },
+  { id: "saved", label: "Saved", icon: Bookmark },
 ];
 
 const EMPTY: Record<ContentTabId, string> = {
@@ -29,6 +30,7 @@ const EMPTY: Record<ContentTabId, string> = {
   trending: "Nothing is trending yet. Like and share to get things moving.",
   mubas: "Posts from confirmed lecturers, staff and stewards, and anything tagged #MUBAS, appear here.",
   friends: "Add friends from Discover and their posts will appear here.",
+  saved: "Tap Save on any post and it will be kept here for you.",
 };
 
 function Home() {
@@ -96,7 +98,7 @@ function Home() {
           <>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
               {items.map((item) => (
-                <ContentCard key={item.id} item={item} meId={profile?.userId ?? ""} admin={profile?.role === "admin"} onChange={reset} />
+                <ContentCard key={item.id} item={item} meId={profile?.userId ?? ""} admin={profile?.role === "admin"} tab={tab} onChange={reset} />
               ))}
             </div>
             {!done && data?.more ? (

@@ -154,3 +154,13 @@
 @media (prefers-reduced-motion: reduce) {
   .story-fill { animation: none; width: 100%; }
 }
+
+.hide-scrollbar { scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
+@keyframes disc { to { transform: rotate(360deg); } }
+.disc-spin { animation: disc 7s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .disc-spin { animation: none; }
+}

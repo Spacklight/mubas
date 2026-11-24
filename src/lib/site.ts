@@ -8,7 +8,7 @@ export const SITE = {
   /** Public support address. Leave empty until a real mailbox exists. */
   contactEmail: "",
   /** Direct link to the Android app (APK). Set VITE_ANDROID_APK_URL at build time, or edit here. */
-  androidApkUrl: ((import.meta.env.VITE_ANDROID_APK_URL as string | undefined) ?? "").trim(),
+  androidApkUrl: ((import.meta.env.VITE_ANDROID_APK_URL as string | undefined) || "/downloads/zapa-mubas.apk").trim(),
   updated: "15 November 2026",
 } as const;
 

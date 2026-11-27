@@ -200,6 +200,8 @@ export async function runWithRotation(
         await block(sql, c.keyId, c.model, 20, "Google overloaded", now);
       } else if (error.status === 400 && /API key not valid|API_KEY_INVALID/i.test(error.message)) {
         await sql.query(`update ai_keys set enabled = false, note = $2 where id = $1`, [c.keyId, "Google rejected this key"]);
+      } else if (error.status === 404 || (error.status === 400 && /not found|is not supported|not available/i.test(error.message))) {
+        await block(sql, c.keyId, c.model, 3600, "model unavailable", now);
       } else if (error.status === 403) {
         await sql.query(`update ai_keys set enabled = false, note = $2 where id = $1`, [c.keyId, "Key not allowed (403)"]);
       } else {
@@ -226,12 +228,26 @@ export const SYSTEM_PROMPT = `You are Zapa AI, a friendly study assistant for st
 - Keep answers under about 300 words unless the student asks for more. Use **bold** for key terms. Do not use tables or HTML.
 - Decline anything harmful, hateful or sexual.`;
 
+export type ChatMode = "chat" | "quiz" | "study-plan" | "essay" | "exam";
+
 export type ChatInput = {
   history: { role: "user" | "model"; body: string }[];
   message: string;
   digest?: string;
   fileName?: string;
   pdf?: { data: string };
+  /** A JPEG photo of notes or handwriting (paid plans). */
+  image?: { data: string };
+  mode?: ChatMode;
+  maxTokens?: number;
+};
+
+const MODE_PROMPTS: Record<ChatMode, string> = {
+  chat: "",
+  quiz: "\nQuiz mode: ask ONE question at a time about the topic (mix multiple choice and short answer). Wait for the student's answer, say whether it is right, explain briefly, keep a running score, then ask the next question.",
+  "study-plan": "\nStudy plan mode: build a realistic day-by-day study plan with times, topics, active-recall tasks and short breaks. If the exam date or the hours per day are missing, ask for them first.",
+  essay: "\nEssay feedback mode: give feedback on structure, argument, evidence, clarity and grammar. Quote short parts. Score each area out of 10. Rewrite only the weakest paragraph as an example. Do not write the whole essay for the student.",
+  exam: "\nExam mode: solve the problem step by step. Show the formulas, the working and your assumptions, state the final answer clearly, then give a quick check of the answer.",
 };
 
 export type ChatResult = { reply: string; digest: string | null; keyId: number; model: string };
@@ -240,6 +256,7 @@ export function buildChatBody(input: ChatInput) {
   const contents: GeminiContent[] = input.history.map((m) => ({ role: m.role, parts: [{ text: m.body }] }));
   const parts: GeminiPart[] = [];
   if (input.pdf) parts.push({ inlineData: { mimeType: "application/pdf", data: input.pdf.data } });
+  if (input.image) parts.push({ inlineData: { mimeType: "image/jpeg", data: input.image.data } });
   if (!input.pdf && input.digest) {
     parts.push({ text: `Reference document "${input.fileName ?? "file"}" (a digest of its contents):\n${input.digest}\n\n---` });
   }
@@ -248,10 +265,12 @@ export function buildChatBody(input: ChatInput) {
   const extra = input.pdf
     ? `\nA PDF is attached. Answer the student's request using it. Then, at the very end, add a line containing exactly ${DIGEST_MARK} followed by a compact digest of the document (headings, key facts, definitions, formulas, up to 900 words) that you can use to answer later questions.`
     : "";
+  const photo = input.image ? "\nA photo of notes, a textbook page or handwriting is attached. Read it carefully before answering." : "";
+  const base = input.maxTokens ?? 1400;
   return {
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT + extra }] },
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT + MODE_PROMPTS[input.mode ?? "chat"] + photo + extra }] },
     contents,
-    generationConfig: { temperature: 0.6, maxOutputTokens: input.pdf ? 2600 : 1400 },
+    generationConfig: { temperature: 0.6, maxOutputTokens: input.pdf ? base + 1200 : base },
   };
 }
 

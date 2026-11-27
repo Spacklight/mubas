@@ -39,6 +39,7 @@ const SIDE: NavDef[] = [
   { to: "/campus/discover", label: "Discover", icon: Compass, exact: false },
   { to: "/campus/communities", label: "Communities", icon: Users, exact: false },
   { to: "/campus/ai", label: "Zapa AI", icon: Sparkles, exact: false },
+  { to: "/campus/ads", label: "Zapa Ads", icon: Megaphone, exact: false },
   { to: "/campus/watch", label: "Zapa Watch", icon: Play, exact: false },
   { to: "/campus/library", label: "Zapa Library", icon: Library, exact: false },
   { to: "/campus/messages", label: "Messages", icon: MessageCircle, exact: false },
@@ -47,6 +48,7 @@ const SIDE: NavDef[] = [
 
 const MORE: NavDef[] = [
   { to: "/campus/ai", label: "Zapa AI", icon: Sparkles, exact: false },
+  { to: "/campus/ads", label: "Zapa Ads", icon: Megaphone, exact: false },
   { to: "/campus/messages", label: "Messages", icon: MessageCircle, exact: false },
   { to: "/campus/communities", label: "Communities", icon: Users, exact: false },
   { to: "/campus/watch", label: "Zapa Watch", icon: Play, exact: false },

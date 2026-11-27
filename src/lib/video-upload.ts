@@ -82,8 +82,10 @@ export async function uploadVideo(input: {
   title: string;
   body: string;
   category: (typeof SHOWCASE_CATEGORIES)[number];
+  /** Set when the video is a paid Zapa Ads creative. */
+  ad?: { business: string; phone: string; ctaUrl?: string };
   onProgress: (stage: UploadStage, percent: number) => void;
-}): Promise<number> {
+}): Promise<{ itemId: number; adId: number | null }> {
   const { file, onProgress } = input;
   const contentType = videoTypeOf(file);
   const problem = checkVideo(file);
@@ -93,7 +95,7 @@ export async function uploadVideo(input: {
   const oid = hex(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
   const poster = await makePoster(file);
 
-  const start = await unwrap(startVideoUpload({ data: { title: input.title, body: input.body, category: input.category, size: file.size, oid, contentType } }));
+  const start = await unwrap(startVideoUpload({ data: { title: input.title, body: input.body, category: input.category, size: file.size, oid, contentType, ...(input.ad ? { ad: input.ad } : {}) } }));
   const etags: string[] = [];
   let done = 0;
   for (let part = 1; part <= start.parts; part += 1) {
@@ -112,6 +114,6 @@ export async function uploadVideo(input: {
     etags.push(etag);
   }
   onProgress("saving", 100);
-  await unwrap(finishVideoUpload({ data: { itemId: start.itemId, etags, ...(poster ? { poster } : {}) } }));
-  return start.itemId;
+  const done = await unwrap(finishVideoUpload({ data: { itemId: start.itemId, etags, ...(poster ? { poster } : {}) } }));
+  return { itemId: start.itemId, adId: done.adId };
 }

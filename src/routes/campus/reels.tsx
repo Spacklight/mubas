@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
@@ -34,6 +34,9 @@ import { compact, useContentActions } from "@/components/content-cards";
 import { Dock } from "@/components/dock";
 import { Logo } from "@/components/logo";
 import { Avatar, AvatarImg, unwrap } from "@/components/page-kit";
+import { AdSlide, useAds } from "@/components/ad-cards";
+import type { AdCard } from "@/lib/campus/pay";
+import { useLiveCounts, withLive } from "@/lib/live-counts";
 import { input } from "@/components/ui";
 import { useRouterState } from "@tanstack/react-router";
 
@@ -100,6 +103,7 @@ function Reels() {
   const [speed, setSpeed] = useStored("zapa-reels-speed", 1);
   const [commentsFor, setCommentsFor] = useState<number | null>(null);
   const [moreFor, setMoreFor] = useState<ShowcaseItem | null>(null);
+  const ads = useAds();
   const scroller = useRef<HTMLDivElement>(null);
   const viewed = useRef(new Set<number>());
   const startId = useRef(search.id);
@@ -140,6 +144,19 @@ function Reels() {
     return () => window.removeEventListener("zapa:content-created", reload);
   }, [tab, load]);
 
+  type SlideEntry = { type: "item"; item: ShowcaseItem } | { type: "ad"; ad: AdCard; key: string };
+  const slides = useMemo<SlideEntry[]>(() => {
+    const out: SlideEntry[] = [];
+    let n = 0;
+    items.forEach((item, i) => {
+      out.push({ type: "item", item });
+      if (ads.length && (i + 1) % 5 === 0) out.push({ type: "ad", ad: ads[n++ % ads.length], key: `ad-${i}` });
+    });
+    return out;
+  }, [items, ads]);
+  const nearIds = slides.slice(Math.max(0, active - 2), active + 5).flatMap((e) => (e.type === "item" ? [e.item.id] : []));
+  const live = useLiveCounts(nearIds, 8000);
+
   // Track which slide is on screen.
   useEffect(() => {
     const root = scroller.current;
@@ -154,16 +171,17 @@ function Reels() {
     );
     root.querySelectorAll("[data-index]").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [items.length]);
+  }, [slides.length]);
 
   // Count a view once, and load more near the end.
   useEffect(() => {
-    const item = items[active];
+    const entry = slides[active];
+    const item = entry?.type === "item" ? entry.item : undefined;
     if (item && !viewed.current.has(item.id)) {
       viewed.current.add(item.id);
       void showcaseAction({ data: { action: "view", id: item.id } }).catch(() => undefined);
     }
-    if (more && !loadingMore.current && items.length > 0 && active >= items.length - 3) {
+    if (more && !loadingMore.current && items.length > 0 && active >= slides.length - 3) {
       loadingMore.current = true;
       void unwrap(listShowcase({ data: { tab, offset: items.length } }))
         .then((r) => {
@@ -175,26 +193,26 @@ function Reels() {
           loadingMore.current = false;
         });
     }
-  }, [active, items, more, tab]);
+  }, [active, slides, items.length, more, tab]);
 
   return (
     <div className="fixed inset-0 z-40 bg-black text-white md:left-60">
-      <header className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/30 to-transparent pb-6">
+      <header className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/30 to-transparent pb-4 md:pb-6">
         <div className="flex items-center gap-1 px-3 pt-2">
           <div className="md:hidden"><Logo to="/campus" compact /></div>
           <div className="ml-auto flex items-center gap-1">
-            <Link to="/campus/search" aria-label="Search" className="grid size-11 place-items-center rounded-full"><Search className="size-6" /></Link>
-            <Link to="/campus/ai" aria-label="Zapa AI" className="grid size-11 place-items-center rounded-full md:hidden"><Sparkles className="size-6" /></Link>
+            <Link to="/campus/search" aria-label="Search" className="grid size-11 place-items-center rounded-full"><Search className="size-5 md:size-6" /></Link>
+            <Link to="/campus/ai" aria-label="Zapa AI" className="grid size-11 place-items-center rounded-full md:hidden"><Sparkles className="size-5 md:size-6" /></Link>
             <Link to="/campus/alerts" aria-label="Notifications" className="relative grid size-11 place-items-center rounded-full">
-              <Bell className="size-6" />
+              <Bell className="size-5 md:size-6" />
               {unreadNotes > 0 ? <span className="absolute right-0.5 top-0.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">{unreadNotes > 9 ? "9+" : unreadNotes}</span> : null}
             </Link>
-            <Link to="/campus/me" aria-label="My profile" className="rounded-full"><AvatarImg name={profile?.fullName ?? "?"} src={profile?.avatarData ?? null} size="size-10" /></Link>
+            <Link to="/campus/me" aria-label="My profile" className="rounded-full"><AvatarImg name={profile?.fullName ?? "?"} src={profile?.avatarData ?? null} size="size-9" /></Link>
           </div>
         </div>
         <div className="hide-scrollbar flex gap-2 overflow-x-auto px-3 pt-1" role="tablist" aria-label="Content feeds">
           {CHIPS.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold backdrop-blur ${tab === id ? "bg-denim text-on-denim" : "bg-black/35 text-white"}`}>
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-xs font-bold backdrop-blur md:min-h-11 md:gap-2 md:px-4 md:text-sm ${tab === id ? "bg-denim text-on-denim" : "bg-black/35 text-white"}`}>
               <Icon className="size-4" />{label}
             </button>
           ))}
@@ -208,10 +226,12 @@ function Reels() {
           <div className="grid h-full place-items-center p-6 text-center"><div><p className="text-danger">{error}</p><button type="button" className="mt-3 font-semibold underline" onClick={() => void load(tab)}>Try again</button></div></div>
         ) : items.length === 0 ? (
           <div className="grid h-full place-items-center p-8 text-center"><div><Clapperboard className="mx-auto size-12 text-white/60" /><p className="mt-3 font-display text-2xl">Nothing here yet</p><p className="mt-1 text-sm text-white/70">Switch tabs or tap Create to share the first one.</p></div></div>
-        ) : items.map((item, index) => (
+        ) : slides.map((entry, index) => entry.type === "ad" ? (
+          <AdSlide key={entry.key} ad={entry.ad} index={index} active={index === active} near={Math.abs(index - active) <= 1} muted={muted} />
+        ) : (
           <Slide
-            key={item.id}
-            item={item}
+            key={entry.item.id}
+            item={withLive(entry.item, live)}
             index={index}
             active={index === active}
             near={Math.abs(index - active) <= 1}
@@ -220,8 +240,8 @@ function Reels() {
             meId={profile?.userId ?? ""}
             onToggleMute={() => setMuted(!muted)}
             onSpeed={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length] ?? 1)}
-            onComments={() => setCommentsFor(item.id)}
-            onMore={() => setMoreFor(item)}
+            onComments={() => setCommentsFor(entry.item.id)}
+            onMore={() => setMoreFor(entry.item)}
           />
         ))}
       </div>
@@ -253,8 +273,16 @@ type SlideProps = {
 function Slide({ item, index, active, near, muted, speed, meId, onToggleMute, onSpeed, onComments, onMore }: SlideProps) {
   const { dataSaver } = useCampus();
   const a = useContentActions(item);
+  const box = useRef<HTMLElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const bar = useRef<HTMLDivElement>(null);
+  // Show the whole picture. Only fill the screen when the video is already the same shape.
+  const [fit, setFit] = useState<"contain" | "cover">("contain");
+  const measure = (w: number, h: number) => {
+    const el = box.current;
+    if (!w || !h || !el || !el.clientHeight) return;
+    setFit(Math.abs(w / h - el.clientWidth / el.clientHeight) < 0.08 ? "cover" : "contain");
+  };
   const [playing, setPlaying] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [ytPlay, setYtPlay] = useState(false);
@@ -298,7 +326,7 @@ function Slide({ item, index, active, near, muted, speed, meId, onToggleMute, on
   const poster = item.hasThumb && !dataSaver ? `/api/media/${item.id}?thumb=1` : undefined;
 
   return (
-    <section data-index={index} className="relative h-full w-full snap-start snap-always overflow-hidden bg-black" aria-label={item.title}>
+    <section ref={box} data-index={index} className="relative h-full w-full snap-start snap-always overflow-hidden bg-black" aria-label={item.title}>
       {isFile ? (
         <video
           ref={video}
@@ -309,11 +337,12 @@ function Slide({ item, index, active, near, muted, speed, meId, onToggleMute, on
           muted={muted}
           preload={near && !dataSaver ? "auto" : "none"}
           onClick={toggle}
+          onLoadedMetadata={(e) => measure(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
           onTimeUpdate={(e) => { if (bar.current && e.currentTarget.duration) bar.current.style.width = `${(e.currentTarget.currentTime / e.currentTarget.duration) * 100}%`; }}
-          className="absolute inset-0 size-full object-cover"
+          className={`absolute inset-0 size-full ${fit === "cover" ? "object-cover" : "object-contain"}`}
         />
       ) : item.kind === "image" && item.hasMedia ? (
-        near ? <img src={`/api/media/${item.id}`} alt={item.title} className="absolute inset-0 size-full object-cover" /> : null
+        near ? <img src={`/api/media/${item.id}`} alt={item.title} onLoad={(e) => measure(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)} className={`absolute inset-0 size-full ${fit === "cover" ? "object-cover" : "object-contain"}`} /> : null
       ) : item.kind === "video" && item.linkUrl ? (
         yt && ytPlay ? <iframe className="absolute inset-0 size-full" src={`https://www.youtube-nocookie.com/embed/${yt}?autoplay=1&playsinline=1`} title={item.title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : (
           <button type="button" onClick={() => (yt ? setYtPlay(true) : window.open(item.linkUrl!, "_blank", "noopener"))} className="hero-glow absolute inset-0 grid place-items-center" aria-label="Play video">
@@ -328,46 +357,46 @@ function Slide({ item, index, active, near, muted, speed, meId, onToggleMute, on
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30" />
       {isFile && !playing && active ? <button type="button" onClick={toggle} aria-label="Play" className="absolute inset-0 z-10 grid place-items-center"><span className="grid size-20 place-items-center rounded-full bg-black/45 backdrop-blur"><Play className="size-9 fill-white" /></span></button> : null}
 
-      <div className="absolute inset-x-3 top-[7.25rem] z-10 flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-sm font-bold backdrop-blur"><Play className="size-4 fill-white" />{compact(item.views)} views</span>
+      <div className="absolute inset-x-3 top-[6.6rem] z-10 flex items-center gap-2 md:top-[7.25rem]">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-xs font-bold backdrop-blur md:px-3 md:py-1.5 md:text-sm"><Play className="size-3.5 fill-white" />{compact(item.views)} views</span>
         <span className="ml-auto flex items-center gap-1.5">
           {isFile ? (
             <>
-              <button type="button" onClick={onSpeed} aria-label={`Playback speed ${speed}x. Tap to change`} className="grid h-10 min-w-10 place-items-center rounded-full bg-black/45 px-2 text-sm font-extrabold backdrop-blur">{speed}x</button>
-              <button type="button" onClick={onToggleMute} aria-label={muted ? "Unmute" : "Mute"} className="grid size-10 place-items-center rounded-full bg-black/45 backdrop-blur">{muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}</button>
-              <button type="button" onClick={fullscreen} aria-label="Full screen" className="grid size-10 place-items-center rounded-full bg-black/45 backdrop-blur"><Maximize className="size-5" /></button>
+              <button type="button" onClick={onSpeed} aria-label={`Playback speed ${speed}x. Tap to change`} className="grid h-9 min-w-9 place-items-center rounded-full bg-black/45 px-2 text-xs font-extrabold backdrop-blur">{speed}x</button>
+              <button type="button" onClick={onToggleMute} aria-label={muted ? "Unmute" : "Mute"} className="grid size-9 place-items-center rounded-full bg-black/45 backdrop-blur">{muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}</button>
+              <button type="button" onClick={fullscreen} aria-label="Full screen" className="grid size-9 place-items-center rounded-full bg-black/45 backdrop-blur"><Maximize className="size-4" /></button>
             </>
           ) : null}
         </span>
       </div>
 
-      <div className="absolute bottom-52 right-2 z-10 grid gap-2 text-center">
-        <Rail label="Like" onClick={() => void a.like()} text={compact(a.likes)}><ThumbsUp className={`size-8 ${a.liked ? "fill-denim text-denim" : ""}`} /></Rail>
-        <Rail label="Comments" onClick={onComments} text={compact(item.commentCount)}><MessageCircle className="size-8" /></Rail>
-        <Rail label="Share" onClick={() => void a.share()} text={compact(a.shares)}><Share2 className="size-8" /></Rail>
-        <Rail label={a.saved ? "Unsave" : "Save"} onClick={() => void a.save()} text="Save"><Bookmark className={`size-8 ${a.saved ? "fill-white" : ""}`} /></Rail>
-        <Rail label="More" onClick={onMore}><MoreHorizontal className="size-8" /></Rail>
+      <div className="absolute bottom-44 right-1.5 z-10 grid gap-0.5 text-center md:bottom-52 md:gap-2">
+        <Rail label="Like" onClick={() => void a.like()} text={compact(a.likes)}><ThumbsUp className={`size-6 md:size-8 ${a.liked ? "fill-denim text-denim" : ""}`} /></Rail>
+        <Rail label="Comments" onClick={onComments} text={compact(item.commentCount)}><MessageCircle className="size-6 md:size-8" /></Rail>
+        <Rail label="Share" onClick={() => void a.share()} text={compact(a.shares)}><Share2 className="size-6 md:size-8" /></Rail>
+        <Rail label={a.saved ? "Unsave" : "Save"} onClick={() => void a.save()} text="Save"><Bookmark className={`size-6 md:size-8 ${a.saved ? "fill-white" : ""}`} /></Rail>
+        <Rail label="More" onClick={onMore}><MoreHorizontal className="size-6 md:size-8" /></Rail>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-10 grid gap-2 px-3 pb-[5.25rem] pr-20 md:pb-6">
+      <div className="absolute inset-x-0 bottom-0 z-10 grid gap-1.5 px-3 pb-[4.9rem] pr-16 md:gap-2 md:pb-6 md:pr-20">
         <div className="flex items-center gap-2.5">
-          <Link to="/campus/people/$userId" params={{ userId: item.userId }} className="flex min-w-0 items-center gap-2.5"><Avatar name={item.author} size="size-12" /><span className="truncate text-lg font-bold">{item.author}</span></Link>
-          {!own ? <button type="button" onClick={() => void a.follow()} className={`shrink-0 rounded-full border px-5 py-1.5 text-base font-bold ${a.following ? "border-white/40 bg-white/20" : "border-white"}`}>{a.following ? "Following" : "Follow"}</button> : null}
+          <Link to="/campus/people/$userId" params={{ userId: item.userId }} className="flex min-w-0 items-center gap-2.5"><Avatar name={item.author} size="size-9 md:size-12" /><span className="truncate text-base font-bold md:text-lg">{item.author}</span></Link>
+          {!own ? <button type="button" onClick={() => void a.follow()} className={`shrink-0 rounded-full border px-4 py-1 text-sm font-bold md:px-5 md:py-1.5 md:text-base ${a.following ? "border-white/40 bg-white/20" : "border-white"}`}>{a.following ? "Following" : "Follow"}</button> : null}
         </div>
-        <p className={`text-pretty text-lg font-semibold leading-snug drop-shadow ${expanded ? "" : "line-clamp-2"}`}>{item.kind === "post" ? "" : item.title}{caption ? <><br />{caption}</> : null}</p>
+        <p className={`text-pretty text-[0.95rem] font-semibold leading-snug drop-shadow md:text-lg ${expanded ? "" : "line-clamp-2"}`}>{item.kind === "post" ? "" : item.title}{caption ? <><br />{caption}</> : null}</p>
         {tags.length ? (
           <div className="flex flex-wrap gap-2">
-            {shownTags.map((t) => <span key={t} className="rounded-full bg-black/40 px-3 py-1 text-sm font-bold text-sand backdrop-blur">{t}</span>)}
-            {!expanded && (tags.length > 3 || caption.length > 80) ? <button type="button" onClick={() => setExpanded(true)} className="rounded-full bg-black/40 px-3 py-1 text-sm font-bold backdrop-blur">…more</button> : null}
+            {shownTags.map((t) => <span key={t} className="rounded-full bg-black/40 px-2.5 py-0.5 text-xs font-bold text-sand backdrop-blur md:px-3 md:py-1 md:text-sm">{t}</span>)}
+            {!expanded && (tags.length > 3 || caption.length > 80) ? <button type="button" onClick={() => setExpanded(true)} className="rounded-full bg-black/40 px-2.5 py-0.5 text-xs font-bold backdrop-blur md:px-3 md:py-1 md:text-sm">…more</button> : null}
           </div>
         ) : null}
-        {item.kind === "video" ? <p className="inline-flex w-fit max-w-full items-center gap-2 rounded-full bg-black/40 px-3 py-2 text-sm font-semibold backdrop-blur"><Music2 className="size-4 shrink-0" /><span className="truncate">Original Audio – {item.author}</span></p> : null}
+        {item.kind === "video" ? <p className="inline-flex w-fit max-w-full items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 text-xs font-semibold backdrop-blur [@media(max-height:720px)]:hidden md:py-2 md:text-sm"><Music2 className="size-4 shrink-0" /><span className="truncate">Original Audio – {item.author}</span></p> : null}
       </div>
 
       {isFile ? (
         <>
-          <button type="button" onClick={toggle} aria-label={playing ? "Pause" : "Play"} className={`absolute bottom-[5.25rem] right-3 z-10 grid size-14 place-items-center rounded-full border-2 border-white bg-black/50 backdrop-blur md:bottom-6 ${playing ? "disc-spin" : ""}`}>{playing ? <Pause className="size-6 fill-white" /> : <Play className="size-6 fill-white" />}</button>
-          <div className="absolute inset-x-0 bottom-[4.4rem] z-10 h-0.5 bg-white/25 md:bottom-0"><div ref={bar} className="h-full w-0 bg-white" /></div>
+          <button type="button" onClick={toggle} aria-label={playing ? "Pause" : "Play"} className={`absolute bottom-[4.9rem] right-2.5 z-10 grid size-11 place-items-center rounded-full border-2 border-white bg-black/50 backdrop-blur md:bottom-6 md:size-14 ${playing ? "disc-spin" : ""}`}>{playing ? <Pause className="size-6 fill-white" /> : <Play className="size-6 fill-white" />}</button>
+          <div className="absolute inset-x-0 bottom-[4.2rem] z-10 h-0.5 bg-white/25 md:bottom-0"><div ref={bar} className="h-full w-0 bg-white" /></div>
         </>
       ) : null}
     </section>
@@ -376,7 +405,7 @@ function Slide({ item, index, active, near, muted, speed, meId, onToggleMute, on
 
 function Rail({ label, onClick, text, children }: { label: string; onClick: () => void; text?: string; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} aria-label={label} className="grid min-h-12 min-w-12 place-items-center gap-0.5 text-sm font-bold drop-shadow-lg">
+    <button type="button" onClick={onClick} aria-label={label} className="grid min-h-11 min-w-11 place-items-center gap-0 text-xs font-bold drop-shadow-lg md:min-h-12 md:min-w-12 md:text-sm">
       {children}
       {text ? <span>{text}</span> : null}
     </button>

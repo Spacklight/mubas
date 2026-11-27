@@ -50,6 +50,9 @@ function Terms() {
         <p>Messages are between the people in a conversation. Links to other websites are provided for convenience; we do not control and are not responsible for them.</p>
         <p>Zapa AI uses a third-party AI service. Its answers can be wrong or incomplete and are not professional, legal, medical or official university advice. Check important facts yourself. Use it to learn, follow your lecturers&apos; rules on assessments, and do not use it to produce harmful content or to share private information. Daily credit and upload limits apply and may change.</p>
 
+        <h2>7b. Zapa Ads and paid plans</h2>
+        <p>Zapa Ads lets members advertise a real business to other members for the price and period shown on the Zapa Ads page. Ads must be honest and legal, must not mislead people about MUBAS, and must not contain adult, violent or illegal content. We may stop an ad that breaks these rules without a refund. Paid Zapa AI Plus plans last for the period shown. Payments are made by mobile money to the number shown in the app and are confirmed by checking your payment screenshot, which a steward may review. Each payment can be used once, fake or edited screenshots lead to account removal, and payments are not refundable once an ad or plan is active, except where the law requires.</p>
+
         <h2>8. Availability and changes</h2>
         <p>We work to keep {SITE.name} available, but it is provided &quot;as is&quot; and may be interrupted, changed or discontinued. We may update features and these terms; the date above shows the latest version.</p>
 

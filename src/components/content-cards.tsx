@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Eye, Flag, MessageCircle, MoreVertical, Play, Share2, ThumbsUp, Trash2 } from "lucide-react";
@@ -31,6 +31,13 @@ export function useContentActions(item: ShowcaseItem, onChange?: () => void) {
   const [shares, setShares] = useState(item.shares);
   const [following, setFollowing] = useState(item.following);
   const [saved, setSaved] = useState(item.saved);
+
+  // Fresh numbers from other devices arrive through the item itself.
+  useEffect(() => {
+    setLikes(item.likeCount);
+    setLiked(item.liked);
+    setShares(item.shares);
+  }, [item.likeCount, item.liked, item.shares]);
 
   async function run<T>(job: () => Promise<T>): Promise<T | null> {
     try {

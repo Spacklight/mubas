@@ -28,7 +28,7 @@ const SCORE = `(select count(*) from showcase_likes l2 where l2.item_id = s.id) 
 
 export function buildListQuery(userId: string, params: ListParams): { text: string; values: unknown[] } {
   const values: unknown[] = [userId];
-  let where = `s.hidden = false and s.pending = false and p.account_status = 'active'
+  let where = `s.hidden = false and s.pending = false and s.is_ad = false and p.account_status = 'active'
     and not exists (select 1 from blocks b where (b.blocker_id = $1 and b.blocked_id = s.user_id) or (b.blocker_id = s.user_id and b.blocked_id = $1))`;
   const add = (clause: string, value: unknown) => {
     values.push(value);

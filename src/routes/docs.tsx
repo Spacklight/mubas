@@ -9,7 +9,7 @@ export const Route = createFileRoute("/docs")({
 
 const TOC = [
   ["start", "Getting started"], ["profile", "Your profile"], ["people", "Finding people"], ["rooms", "Programme rooms"], ["messages", "Messages"],
-  ["content", "Zapa Content"], ["ai", "Zapa AI"], ["watch", "Zapa Watch"], ["library", "Zapa Library"], ["updates", "MUBAS Updates"], ["safety", "Safety and privacy"], ["stewards", "For stewards"], ["help", "Troubleshooting"],
+  ["content", "Zapa Content"], ["ai", "Zapa AI"], ["plus", "Zapa AI Plus"], ["ads", "Zapa Ads"], ["watch", "Zapa Watch"], ["library", "Zapa Library"], ["updates", "MUBAS Updates"], ["safety", "Safety and privacy"], ["stewards", "For stewards"], ["help", "Troubleshooting"],
 ] as const;
 
 function Docs() {
@@ -63,6 +63,19 @@ function Docs() {
           <li>Everyone gets <strong>20 free credits a day</strong>, renewed at midnight (Malawi time). A question costs 1 credit, a question with a PDF 2, and HD voice 2.</li>
           <li>AI can make mistakes. Check important facts in your notes and textbooks, and never share passwords or private information.</li>
         </ul>
+
+        <h2 id="plus">Zapa AI Plus</h2>
+        <p>Open <strong>Zapa AI → Plus</strong> to get more. Paid plans give a stronger model, more daily credits, bigger PDFs, longer answers and extra study tools.</p>
+        <ul>
+          <li><strong>K200 Plus:</strong> 60 credits a day, Quiz mode and Study plans.</li>
+          <li><strong>K500 Plus Smart:</strong> 120 credits a day, a smarter model, Essay feedback.</li>
+          <li><strong>K750 Plus Pro:</strong> 200 credits a day, photo and handwriting questions, Exam mode, free HD voice.</li>
+          <li><strong>K1000 Plus Max:</strong> 300 credits a day and the most powerful model Zapa has.</li>
+          <li>Each plan lasts 30 days. Pay by mobile money to the number shown, then upload the screenshot. Zapa checks it automatically and switches your plan on.</li>
+        </ul>
+
+        <h2 id="ads">Zapa Ads</h2>
+        <p>Students who run a business can advertise to the whole campus. Open <strong>Menu → Zapa Ads</strong>, create a photo, video or video-link ad with your business name and WhatsApp number, then pay <strong>K500</strong> by mobile money and upload the payment screenshot. Zapa verifies it and your ad runs for 7 days in the Home feed and in the video player. You can see views and contacts, pause or delete the ad. Ads must be honest and legal, and stewards can stop ads that break the rules.</p>
 
         <h2 id="watch">Zapa Watch</h2>
         <p>Share links to tutorials, lectures and student stories. YouTube links play inside Zapa when you press play, and thumbnails are skipped when data saver is on. Subscribe to creators and save videos to playlists.</p>

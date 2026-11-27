@@ -4,6 +4,8 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { audit, db, fail, flag, isAdmin, limited, member, num, parse, str, type Row } from "@/lib/campus/common";
 import { DEFAULT_AI_CREDITS, minutesUntilRenewal, refund, spend, usedToday } from "@/lib/campus/quota";
 import { cleanText } from "@/lib/campus/logic";
+import { readPaySettings } from "@/lib/campus/pay-logic";
+import { effectiveTier, type Feature } from "@/lib/campus/plans";
 
 /** Credits each action costs. Students start every day with the daily allowance. */
 export const AI_COSTS = { message: 1, pdf: 2, hdVoice: 2 } as const;
@@ -15,6 +17,17 @@ export type AiFile = { id: number; name: string; size: number; createdAt: string
 async function ai() {
   return import("@/lib/ai.server");
 }
+
+/** The member's plan: Free, or the best paid plan that has not expired. */
+async function planFor(sql: Awaited<ReturnType<typeof db>>, userId: string) {
+  const engine = await ai();
+  const settings = await engine.readSettings(sql, { credits: DEFAULT_AI_CREDITS });
+  const pay = await readPaySettings(sql);
+  const { tier, expiresAt } = await effectiveTier(sql, userId, pay.tiers, settings.credits, settings.models);
+  return { engine, settings, tier, expiresAt, models: [...new Set([...tier.models, ...settings.models])] };
+}
+
+const MAX_PHOTO_CHARS = 1_300_000;
 
 async function creditsFor(sql: Awaited<ReturnType<typeof db>>, userId: string, limit: number) {
   const used = await usedToday(sql, userId, "ai");
@@ -33,8 +46,7 @@ export const aiStatus = createServerFn({ method: "POST" })
     const sql = await db();
     const me = await member(sql, context.userId);
     if ("ok" in me) return me;
-    const engine = await ai();
-    const settings = await engine.readSettings(sql, { credits: DEFAULT_AI_CREDITS });
+    const { tier, expiresAt } = await planFor(sql, context.userId);
     const keys = await sql.query<Row>(`select count(*) as n from ai_keys where enabled = true`);
     const messages = await sql.query<Row>(
       `select id, role, body, file_name, created_at from ai_chats where user_id = $1 order by id desc limit 40`,
@@ -44,7 +56,8 @@ export const aiStatus = createServerFn({ method: "POST" })
     return {
       ok: true as const,
       enabled: num(keys[0] ?? {}, "n") > 0,
-      credits: await creditsFor(sql, context.userId, settings.credits),
+      credits: await creditsFor(sql, context.userId, tier.credits),
+      plan: { name: tier.name, price: tier.price, features: tier.features as Feature[], voiceCost: tier.voiceCost, maxPdfMb: tier.maxPdfMb, expiresAt },
       messages: messages.reverse().map((r): AiMessage => ({ id: num(r, "id"), role: str(r, "role") === "model" ? "model" : "user", body: str(r, "body"), fileName: r.file_name ? str(r, "file_name") : null, createdAt: str(r, "created_at") })),
       files: files.map((r): AiFile => ({ id: num(r, "id"), name: str(r, "name"), size: num(r, "size"), createdAt: str(r, "created_at") })),
     };
@@ -58,11 +71,13 @@ export const aiChat = createServerFn({ method: "POST" })
       z.object({
         message: z.string().trim().min(1, "Type a question first.").max(2000, "Please keep your question under 2,000 characters."),
         fileId: z.number().int().positive().optional(),
+        mode: z.enum(["chat", "quiz", "study-plan", "essay", "exam"]).optional(),
+        image: z.object({ data: z.string().max(MAX_PHOTO_CHARS).regex(/^[A-Za-z0-9+/]+={0,2}$/, "That photo could not be read.") }).optional(),
         pdf: z
           .object({
             name: z.string().trim().min(1).max(160),
-            size: z.number().int().positive().max(MAX_PDF_BYTES, "PDFs can be up to 8 MB."),
-            data: z.string().max(Math.ceil(MAX_PDF_BYTES * 1.4)).regex(/^[A-Za-z0-9+/]+={0,2}$/, "That PDF could not be read."),
+            size: z.number().int().positive().max(20 * 1048576, "PDFs can be up to 20 MB."),
+            data: z.string().max(Math.ceil(20 * 1048576 * 1.4)).regex(/^[A-Za-z0-9+/]+={0,2}$/, "That PDF could not be read."),
           })
           .optional(),
       }),
@@ -72,10 +87,14 @@ export const aiChat = createServerFn({ method: "POST" })
     const sql = await db();
     const me = await member(sql, context.userId);
     if ("ok" in me) return me;
-    const engine = await ai();
-    const settings = await engine.readSettings(sql, { credits: DEFAULT_AI_CREDITS });
-    const cost = parsed.pdf ? AI_COSTS.pdf : AI_COSTS.message;
-    if ((await usedToday(sql, context.userId, "ai")) + cost > settings.credits) return outOfCredits(settings.credits);
+    const { engine, tier, models } = await planFor(sql, context.userId);
+    const upgrade = tier.price === 0 ? " Upgrade to Zapa AI Plus to unlock it." : "";
+    const mode = parsed.mode ?? "chat";
+    if (mode !== "chat" && !tier.features.includes(mode)) return fail(`That mode is not part of your plan.${upgrade}`);
+    if (parsed.image && !tier.features.includes("photo")) return fail(`Photo questions are not part of your plan.${upgrade}`);
+    if (parsed.pdf && parsed.pdf.size > tier.maxPdfMb * 1048576) return fail(`Your plan allows PDFs up to ${tier.maxPdfMb} MB.${upgrade}`);
+    const cost = parsed.pdf || parsed.image ? AI_COSTS.pdf : AI_COSTS.message;
+    if ((await usedToday(sql, context.userId, "ai")) + cost > tier.credits) return outOfCredits(tier.credits);
     const paced = await limited(sql, context.userId, "ai-chat", 40);
     if (paced) return paced;
 
@@ -93,8 +112,11 @@ export const aiChat = createServerFn({ method: "POST" })
     try {
       const result = await engine.chat(
         sql,
-        settings.models,
+        models,
         {
+          mode,
+          maxTokens: tier.maxTokens,
+          image: parsed.image ? { data: parsed.image.data } : undefined,
           history: history.reverse().map((r) => ({ role: str(r, "role") === "model" ? "model" : "user", body: str(r, "body").slice(0, 4000) })),
           message: parsed.message,
           digest,
@@ -116,7 +138,7 @@ export const aiChat = createServerFn({ method: "POST" })
       await sql.query(`insert into ai_chats (user_id, role, body, file_name) values ($1, 'user', $2, $3)`, [context.userId, cleanText(parsed.message, 2000), fileName ?? null]);
       await sql.query(`insert into ai_chats (user_id, role, body) values ($1, 'model', $2)`, [context.userId, result.reply.slice(0, 8000)]);
       await sql.query(`delete from ai_chats where user_id = $1 and id not in (select id from ai_chats where user_id = $1 order by id desc limit 200)`, [context.userId]);
-      return { ok: true as const, reply: result.reply, fileId, credits: await creditsFor(sql, context.userId, settings.credits) };
+      return { ok: true as const, reply: result.reply, fileId, credits: await creditsFor(sql, context.userId, tier.credits) };
     } catch (error) {
       await refund(sql, context.userId, "ai", cost);
       if (error instanceof Error && (error.name === "NoCapacityError" || error.name === "GeminiError")) {
@@ -137,17 +159,17 @@ export const aiSpeak = createServerFn({ method: "POST" })
     const sql = await db();
     const me = await member(sql, context.userId);
     if ("ok" in me) return me;
-    const engine = await ai();
-    const settings = await engine.readSettings(sql, { credits: DEFAULT_AI_CREDITS });
-    if ((await usedToday(sql, context.userId, "ai")) + AI_COSTS.hdVoice > settings.credits) return outOfCredits(settings.credits);
+    const { engine, settings, tier } = await planFor(sql, context.userId);
+    const cost = tier.voiceCost;
+    if (cost > 0 && (await usedToday(sql, context.userId, "ai")) + cost > tier.credits) return outOfCredits(tier.credits);
     const paced = await limited(sql, context.userId, "ai-voice", 12);
     if (paced) return paced;
-    await spend(sql, context.userId, "ai", AI_COSTS.hdVoice);
+    if (cost > 0) await spend(sql, context.userId, "ai", cost);
     try {
       const out = await engine.speak(sql, settings.ttsModel, parsed.text, engine.secretFromEnv());
-      return { ok: true as const, pcm: out.pcm, sampleRate: 24000, credits: await creditsFor(sql, context.userId, settings.credits) };
+      return { ok: true as const, pcm: out.pcm, sampleRate: 24000, credits: await creditsFor(sql, context.userId, tier.credits) };
     } catch (error) {
-      await refund(sql, context.userId, "ai", AI_COSTS.hdVoice);
+      if (cost > 0) await refund(sql, context.userId, "ai", cost);
       console.error("[ai] voice failed", error instanceof Error ? error.message : error);
       return fail("HD voice is not available right now. Use the device voice instead, it is free.");
     }

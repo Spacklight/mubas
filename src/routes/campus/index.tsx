@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Bookmark, Clapperboard, Flame, GraduationCap, UserRound, Users } from "lucide-react";
@@ -7,6 +7,8 @@ import { failureMessage } from "@/lib/campus/email-auth";
 import { useCampus } from "@/components/campus-state";
 import { ContentCard } from "@/components/content-cards";
 import { StoriesRow } from "@/components/stories";
+import { AdTile, useAds } from "@/components/ad-cards";
+import { useLiveCounts, withLive } from "@/lib/live-counts";
 import { LoadError, Skeleton, unwrap, useLoad } from "@/components/page-kit";
 import { btnGhost, Empty } from "@/components/ui";
 
@@ -41,6 +43,15 @@ function Home() {
   const [busy, setBusy] = useState(false);
   const { data, error, loading, reload } = useLoad(() => unwrap(listShowcase({ data: { tab } })), [tab]);
   const items = data ? [...data.items, ...more] : [];
+  const live = useLiveCounts(items.slice(0, 24).map((i) => i.id), 12000);
+  const ads = useAds();
+  const tiles: ReactNode[] = [];
+  let adIndex = 0;
+  items.forEach((item, i) => {
+    tiles.push(<ContentCard key={item.id} item={withLive(item, live)} meId={profile?.userId ?? ""} admin={profile?.role === "admin"} tab={tab} onChange={reset} />);
+    if (ads.length && (i + 1) % 6 === 0) tiles.push(<AdTile key={`ad-${i}`} ad={ads[adIndex++ % ads.length]} />);
+  });
+  if (ads.length && items.length > 0 && items.length < 6) tiles.push(<AdTile key="ad-end" ad={ads[0]} />);
 
   function reset() {
     setMore([]);
@@ -97,9 +108,7 @@ function Home() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-              {items.map((item) => (
-                <ContentCard key={item.id} item={item} meId={profile?.userId ?? ""} admin={profile?.role === "admin"} tab={tab} onChange={reset} />
-              ))}
+              {tiles}
             </div>
             {!done && data?.more ? (
               <button type="button" className={`${btnGhost} mt-4 w-full`} onClick={() => void loadMore()} disabled={busy}>

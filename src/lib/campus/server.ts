@@ -146,10 +146,10 @@ async function notify(
   const column =
     kind === "message" ? "notify_messages" : kind === "announcement" ? "notify_campus" : "notify_social";
   const rows = await sql.query<Row>(
-    `select ${column} as on from profiles where user_id = $1 and account_status = 'active'`,
+    `select ${column} as enabled from profiles where user_id = $1 and account_status = 'active'`,
     [userId],
   );
-  if (!rows[0] || !flag(rows[0], "on")) return;
+  if (!rows[0] || !flag(rows[0], "enabled")) return;
   await sql`
     insert into notifications (user_id, kind, title, body, href)
     values (${userId}, ${kind}, ${cleanText(title, 140)}, ${cleanText(body, 240)}, ${href.slice(0, 240)})

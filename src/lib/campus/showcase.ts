@@ -5,6 +5,7 @@ import { cleanHttpUrl, cleanText, REPORT_REASONS } from "@/lib/campus/logic";
 import { buildListQuery, CONTENT_TABS, PAGE, STORIES_SQL } from "@/lib/campus/showcase-sql";
 import { db, fail, flag, limited, member, num, parse, str, type Row } from "@/lib/campus/common";
 import { LIMITS, spend, usedToday } from "@/lib/campus/quota";
+import { toE164 } from "@/lib/campus/pay-logic";
 
 export { CONTENT_TABS };
 export type ContentTabId = (typeof CONTENT_TABS)[number];
@@ -191,6 +192,8 @@ export const startVideoUpload = createServerFn({ method: "POST" })
         size: z.number().int().min(1024, "That video looks empty.").max(MAX_VIDEO_BYTES, "Videos can be up to 60 MB. Trim your clip and try again."),
         oid: z.string().regex(/^[a-f0-9]{64}$/, "Could not read the video."),
         contentType: z.enum(VIDEO_TYPES),
+        /** Set when the video is a paid Zapa Ads creative. */
+        ad: z.object({ business: z.string().trim().min(2).max(80), phone: z.string().trim().max(30), ctaUrl: z.string().trim().max(300).optional() }).optional(),
       }),
       data,
     );
@@ -200,7 +203,11 @@ export const startVideoUpload = createServerFn({ method: "POST" })
     if ("ok" in me) return me;
     const hf = await import("@/lib/hf.server");
     if (!hf.hfConfigured()) return fail("Video uploads are not switched on yet.");
-    if ((await usedToday(sql, context.userId, "video")) >= LIMITS.video) {
+    const adPhone = parsed.ad ? toE164(parsed.ad.phone) : null;
+    if (parsed.ad && !adPhone) return fail("Enter a valid Malawi phone number, for example 0991234567.");
+    const adCta = parsed.ad?.ctaUrl ? cleanHttpUrl(parsed.ad.ctaUrl) : null;
+    if (parsed.ad?.ctaUrl && !adCta) return fail("The website link must start with https://");
+    if (!parsed.ad && (await usedToday(sql, context.userId, "video")) >= LIMITS.video) {
       return fail(`You have used your ${LIMITS.video} video uploads for today. They renew at midnight.`);
     }
     const paced = await limited(sql, context.userId, "content-video", 12);
@@ -216,10 +223,13 @@ export const startVideoUpload = createServerFn({ method: "POST" })
     const ext = parsed.contentType === "video/webm" ? "webm" : parsed.contentType === "video/quicktime" ? "mov" : "mp4";
     const path = `content/${ownerSlug(context.userId)}/${fileStamp()}.${ext}`;
     const rows = await sql.query<Row>(
-      `insert into showcase_items (user_id, kind, title, body, category, media_path, media_type, media_oid, media_size, upload_plan, pending)
-       values ($1, 'video', $2, $3, $4, $5, $6, $7, $8, $9, true) returning id`,
-      [context.userId, cleanText(parsed.title, 120), cleanText(parsed.body ?? "", 3000), parsed.category, path, parsed.contentType, parsed.oid, parsed.size, JSON.stringify(plan)],
+      `insert into showcase_items (user_id, kind, title, body, category, media_path, media_type, media_oid, media_size, upload_plan, pending, is_ad)
+       values ($1, 'video', $2, $3, $4, $5, $6, $7, $8, $9, true, $10) returning id`,
+      [context.userId, cleanText(parsed.title, 120), cleanText(parsed.body ?? "", 3000), parsed.category, path, parsed.contentType, parsed.oid, parsed.size, JSON.stringify(plan), Boolean(parsed.ad)],
     );
+    if (parsed.ad && adPhone) {
+      await sql.query(`insert into ads (user_id, item_id, business, phone, cta_url) values ($1, $2, $3, $4, $5)`, [context.userId, num(rows[0] ?? {}, "id"), cleanText(parsed.ad.business, 80), adPhone, adCta]);
+    }
     const parts = plan.mode === "multipart" ? Math.ceil(parsed.size / (plan.chunkSize ?? parsed.size)) : plan.mode === "basic" ? 1 : 0;
     if (plan.mode === "multipart" && (plan.partUrls?.length ?? 0) < parts) return fail("Hugging Face returned an unexpected upload plan.");
     return { ok: true as const, itemId: num(rows[0] ?? {}, "id"), mode: plan.mode, chunkSize: plan.chunkSize ?? parsed.size, parts };
@@ -243,7 +253,7 @@ export const finishVideoUpload = createServerFn({ method: "POST" })
     const me = await member(sql, context.userId);
     if ("ok" in me) return me;
     const rows = await sql.query<Row>(
-      `select id, media_path, media_oid, media_size, upload_plan from showcase_items where id = $1 and user_id = $2 and pending = true`,
+      `select id, media_path, media_oid, media_size, upload_plan, is_ad from showcase_items where id = $1 and user_id = $2 and pending = true`,
       [parsed.itemId, context.userId],
     );
     const item = rows[0];
@@ -274,8 +284,12 @@ export const finishVideoUpload = createServerFn({ method: "POST" })
       }
     }
     await sql.query(`update showcase_items set pending = false, thumb_path = $2, upload_plan = null where id = $1`, [parsed.itemId, thumb]);
-    await spend(sql, context.userId, "video");
-    return { ok: true as const, id: parsed.itemId };
+    if (!flag(item, "is_ad")) {
+      await spend(sql, context.userId, "video");
+      return { ok: true as const, id: parsed.itemId, adId: null as number | null };
+    }
+    const adRow = await sql.query<Row>(`select id from ads where item_id = $1`, [parsed.itemId]);
+    return { ok: true as const, id: parsed.itemId, adId: adRow[0] ? num(adRow[0], "id") : null };
   });
 
 // ------------------------------------------------------------- actions ----
@@ -462,5 +476,29 @@ export const getQuota = createServerFn({ method: "POST" })
       ok: true as const,
       video: { used: video, limit: LIMITS.video, left: Math.max(0, LIMITS.video - video) },
       story: { used: story, limit: LIMITS.story, left: Math.max(0, LIMITS.story - story) },
+    };
+  });
+
+/** Fresh like, comment, share and view counts for posts already on screen. */
+export const showcaseCounts = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data, context }) => {
+    const parsed = parse(z.object({ ids: z.array(z.number().int().positive()).min(1).max(40) }), data);
+    if ("ok" in parsed) return parsed;
+    const sql = await db();
+    const ids = [...new Set(parsed.ids)];
+    const marks = ids.map((_, i) => `$${i + 2}`).join(", ");
+    const rows = await sql.query<Row>(
+      `select s.id, s.shares, s.views,
+              (select count(*) from showcase_likes l where l.item_id = s.id) as like_count,
+              (select count(*) from showcase_comments c where c.item_id = s.id) as comment_count,
+              exists(select 1 from showcase_likes l where l.item_id = s.id and l.user_id = $1) as liked
+       from showcase_items s where s.id in (${marks}) and s.hidden = false`,
+      [context.userId, ...ids],
+    );
+    return {
+      ok: true as const,
+      counts: rows.map((r) => ({ id: num(r, "id"), likes: num(r, "like_count"), comments: num(r, "comment_count"), shares: num(r, "shares"), views: num(r, "views"), liked: flag(r, "liked") })),
     };
   });

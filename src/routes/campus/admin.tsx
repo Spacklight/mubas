@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { adminAct, adminOverview } from "@/lib/campus/server";
 import { checkStorage } from "@/lib/campus/showcase";
 import { aiAdminAct, aiAdminOverview } from "@/lib/campus/ai";
+import { payAdminAct, payAdminOverview } from "@/lib/campus/pay";
 import { ago } from "@/lib/campus/logic";
 import { failureMessage } from "@/lib/campus/email-auth";
 import { useCampus } from "@/components/campus-state";
@@ -82,6 +83,8 @@ function Dashboard() {
             {p.accountStatus === "suspended" ? <button className={btnGhost} onClick={() => void act({ action: "restore", userId: p.userId }, "Restored")}>Restore</button> : p.role !== "admin" ? <button className={btnQuiet} onClick={() => void act({ action: "suspend", userId: p.userId }, "Suspended")}>Suspend</button> : null}
           </li>))}</ul>
       </Card>
+
+      <PaymentsCard />
 
       <AiKeysCard />
 
@@ -206,6 +209,99 @@ function AiKeysCard() {
             <Field label="Voice model"><input className={input} value={tts} onChange={(e) => setTts(e.target.value)} /></Field>
             <button className={btnGhost} disabled={busy} onClick={() => void act({ action: "settings", credits: Number(credits), models, ttsModel: tts }, "Settings saved")}>Save settings</button>
             <p className="text-xs text-muted">Zapa keeps each key and model under 13 requests a minute and 470 a day, and moves to the next key when Google says a limit is reached.</p>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+type PayAction = Parameters<typeof payAdminAct>[0]["data"];
+
+function PaymentsCard() {
+  const { data, error, loading, reload } = useLoad(() => unwrap(payAdminOverview()), []);
+  const [proof, setProof] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({ number: "", adsPrice: "", adsDays: "", planDays: "", plansJson: "" });
+
+  useEffect(() => {
+    if (!data) return;
+    setF({ number: data.settings.number, adsPrice: String(data.settings.adsPrice), adsDays: String(data.settings.adsDays), planDays: String(data.settings.planDays), plansJson: data.settings.plansJson });
+  }, [data]);
+
+  async function act(payload: PayAction, done: string) {
+    setBusy(true);
+    try {
+      await unwrap(payAdminAct({ data: payload }));
+      toast.success(done);
+      reload();
+    } catch (reason) {
+      toast.error(failureMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const label = (p: { purpose: string; tier: number | null }) => (p.purpose === "ad" ? "Zapa Ad" : `Zapa AI Plus K${p.tier ?? ""}`);
+  const chip = (status: string) => (status === "approved" ? "bg-good-soft text-good" : status === "pending_review" ? "bg-sand text-navy" : "bg-danger-soft text-danger");
+
+  return (
+    <Card title="Payments, Zapa Ads and Plus">
+      {loading && !data ? <p className="text-sm text-muted">Loading…</p> : error || !data ? <LoadError message={error ?? "Could not load."} onRetry={reload} /> : (
+        <div className="grid gap-4">
+          <div className="grid grid-cols-3 gap-2 text-center text-sm">
+            {(["ad", "plan"] as const).map((k) => {
+              const t = data.totals.find((x) => x.purpose === k);
+              return <div key={k} className="rounded-xl bg-sand-soft p-2"><p className="font-display text-2xl">K{t?.total ?? 0}</p><p className="text-xs text-muted">{k === "ad" ? "ads" : "Plus plans"} ({t?.count ?? 0})</p></div>;
+            })}
+            <div className="rounded-xl bg-sand-soft p-2"><p className="font-display text-2xl">{data.activeAds}</p><p className="text-xs text-muted">ads running</p></div>
+          </div>
+          <p className="rounded-xl bg-sand-soft p-3 text-xs text-pretty text-muted">Zapa reads each screenshot automatically, but a screenshot can be faked. Compare the approved payments below with your mobile money statement every few days and use <strong>Revoke</strong> on any payment you cannot find there.</p>
+
+          <div>
+            <p className="mb-2 font-semibold">Waiting for a steward ({data.payments.filter((p) => p.status === "pending_review").length})</p>
+            <ul className="grid gap-2">
+              {data.payments.filter((p) => p.status === "pending_review").length === 0 ? <li className="text-sm text-muted">Nothing to review.</li> : data.payments.filter((p) => p.status === "pending_review").map((p) => (
+                <li key={p.id} className="rounded-xl border border-line p-3 text-sm">
+                  <p className="font-semibold">{p.who} · {label(p)} · K{p.expected}</p>
+                  <p className="text-xs text-muted">Read: K{p.amount ?? "?"} to {p.recipient || "?"} · ID {p.txn || "?"} · {p.paidAt || "no date"} · {p.provider || "?"} · confidence {p.confidence == null ? "?" : Math.round(p.confidence * 100)}%</p>
+                  <p className="mt-1 text-xs text-danger">{p.reason}</p>
+                  <button type="button" className="mt-1 text-xs font-bold text-denim-deep" onClick={() => setProof(proof === p.id ? null : p.id)}>{proof === p.id ? "Hide screenshot" : "View screenshot"}</button>
+                  {proof === p.id ? <img src={`/api/payment-proof/${p.id}`} alt="Payment screenshot" className="mt-2 max-h-96 rounded-xl border border-line object-contain" /> : null}
+                  <div className="mt-2 flex gap-2"><button className={btn} disabled={busy} onClick={() => void act({ action: "approve", id: p.id }, "Approved")}>Approve</button><button className={btnGhost} disabled={busy} onClick={() => { const note = window.prompt("Reason for rejecting (the member will see it):") ?? ""; if (note.trim()) void act({ action: "reject", id: p.id, note }, "Rejected"); }}>Reject</button></div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <details>
+            <summary className="cursor-pointer font-semibold">Recent payments</summary>
+            <ul className="mt-2 grid gap-2">
+              {data.payments.filter((p) => p.status !== "pending_review").map((p) => (
+                <li key={p.id} className="rounded-xl border border-line p-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{p.who}</span><span className="text-xs text-muted">{label(p)} · K{p.expected} · ID {p.txn || "—"}</span><span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-bold ${chip(p.status)}`}>{p.status}</span></div>
+                  <p className="text-xs text-muted">{p.reason}</p>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {p.hasProof ? <button type="button" className="text-xs font-bold text-denim-deep" onClick={() => setProof(proof === p.id ? null : p.id)}>{proof === p.id ? "Hide screenshot" : "View screenshot"}</button> : null}
+                    {p.status === "approved" ? <button type="button" className="text-xs font-bold text-danger" disabled={busy} onClick={() => { if (window.confirm("Revoke this payment? The ad or plan it paid for is switched off.")) void act({ action: "revoke", id: p.id, note: "Not found in the account statement." }, "Revoked"); }}>Revoke</button> : null}
+                  </div>
+                  {proof === p.id ? <img src={`/api/payment-proof/${p.id}`} alt="Payment screenshot" className="mt-2 max-h-96 rounded-xl border border-line object-contain" /> : null}
+                </li>
+              ))}
+            </ul>
+          </details>
+
+          <div className="grid gap-3 rounded-xl border border-line p-3">
+            <p className="font-semibold">Payment settings</p>
+            <Field label="Mobile money number customers pay to"><input className={input} value={f.number} onChange={(e) => setF({ ...f, number: e.target.value })} inputMode="tel" /></Field>
+            <div className="grid grid-cols-3 gap-2">
+              <Field label="Ad price (K)"><input className={input} type="number" value={f.adsPrice} onChange={(e) => setF({ ...f, adsPrice: e.target.value })} /></Field>
+              <Field label="Ad days"><input className={input} type="number" value={f.adsDays} onChange={(e) => setF({ ...f, adsDays: e.target.value })} /></Field>
+              <Field label="Plan days"><input className={input} type="number" value={f.planDays} onChange={(e) => setF({ ...f, planDays: e.target.value })} /></Field>
+            </div>
+            <Field label="Zapa AI Plus plans (JSON list: price, name, credits, models, features, maxPdfMb, maxTokens, voiceCost, blurb)"><textarea className={`${input} min-h-48 font-mono text-xs`} value={f.plansJson} onChange={(e) => setF({ ...f, plansJson: e.target.value })} spellCheck={false} /></Field>
+            <button className={btnGhost} disabled={busy} onClick={() => void act({ action: "settings", number: f.number, adsPrice: Number(f.adsPrice), adsDays: Number(f.adsDays), planDays: Number(f.planDays), plansJson: f.plansJson }, "Settings saved")}>Save payment settings</button>
+            <p className="text-xs text-muted">Model names in the plans must be available to your Google API keys. If a model is not available, Zapa skips it and uses the next one.</p>
           </div>
         </div>
       )}

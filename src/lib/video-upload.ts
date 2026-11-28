@@ -114,6 +114,6 @@ export async function uploadVideo(input: {
     etags.push(etag);
   }
   onProgress("saving", 100);
-  const done = await unwrap(finishVideoUpload({ data: { itemId: start.itemId, etags, ...(poster ? { poster } : {}) } }));
-  return { itemId: start.itemId, adId: done.adId };
+  const finished = await unwrap(finishVideoUpload({ data: { itemId: start.itemId, etags, ...(poster ? { poster } : {}) } }));
+  return { itemId: start.itemId, adId: finished.adId };
 }
